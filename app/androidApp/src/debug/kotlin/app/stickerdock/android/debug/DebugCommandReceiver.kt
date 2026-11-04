@@ -102,6 +102,19 @@ class DebugCommandReceiver : BroadcastReceiver() {
                         val result = resolver.call(hub, "finish_import", session, null)
                         log.record("debug", "companion_import sent=$sent failed=$failed → added=${result?.getInt("added")} dup=${result?.getInt("duplicates")} rejected=${result?.getInt("rejected")} packs=${result?.getInt("packs")}")
                     }
+                    "shelf_some" -> {
+                        // Put the N largest WhatsApp-ready packs on the shelf (for provider checks).
+                        val n = intent.getIntExtra("n", 3)
+                        graph.library.packs(includeAdult = true).filter { it.whatsAppReady }.sortedByDescending { it.count }.take(n)
+                            .forEach { graph.library.setShelf(it.id, true); log.record("debug", "shelved ${it.id} ${it.name}(${it.count})") }
+                    }
+                    "provider_selftest" -> {
+                        val reports = app.stickerdock.android.whatsapp.WhatsAppValidator(context).validateAll()
+                        if (reports.isEmpty()) log.record("selftest", "user ${Dual.myUserId()}: provider lists no packs")
+                        reports.forEach { r ->
+                            log.record("selftest", "user ${Dual.myUserId()}: ${r.name} (${r.stickers}) ${if (r.ok) "OK" else "PROBLEMS ${r.problems.take(4)}"}")
+                        }
+                    }
                     "wipe" -> {
                         val lib = graph.library
                         listOf(false, true).forEach { vault ->
