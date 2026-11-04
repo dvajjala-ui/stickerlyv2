@@ -1,5 +1,6 @@
 package app.stickerdock.android.imports
 
+import app.stickerdock.android.media.addNormalized
 import android.content.Context
 import android.net.Uri
 import android.provider.DocumentsContract
@@ -81,7 +82,7 @@ class FolderImporter(private val context: Context) {
                 is Normalized.Fail -> { library.recordRejected(sessionId, entry.docId, n.reason, bytes.size); rejected++ }
                 is Normalized.Ok -> {
                     val group = n.exif?.packName.orEmpty()
-                    val result = library.addSticker(n.bytes, Origin.IMPORT, originRef = group.ifBlank { entry.folder },
+                    val result = library.addNormalized(n, Origin.IMPORT, originRef = group.ifBlank { entry.folder },
                         label = entry.name, emojis = n.exif?.emojis?.joinToString(",").orEmpty())
                     library.recordImport(sessionId, entry.docId, result, group, bytes.size)
                     when (result) {
@@ -204,7 +205,7 @@ class ArchiveImporter(private val context: Context) {
             val s = stickers.getJSONObject(i)
             val n = byName[s.optString("file")]?.bytes?.let(StickerNormalizer::normalize)
             if (n !is Normalized.Ok) { rejected++; continue }
-            when (val r = library.addSticker(n.bytes, Origin.SHARE, originRef = packName, label = s.optString("label"),
+            when (val r = library.addNormalized(n, Origin.SHARE, originRef = packName, label = s.optString("label"),
                 tags = s.optString("tags"), emojis = s.optString("emojis"))) {
                 is AddResult.Added -> ids += r.id
                 is AddResult.Duplicate -> { ids += r.id; dup++ }
@@ -226,7 +227,7 @@ class ArchiveImporter(private val context: Context) {
             if (n.reencoded && isTray(item.bytes)) continue
             val folder = item.path.substringBeforeLast('/', "").substringAfterLast('/')
             val group = n.exif?.packName ?: folder.ifBlank { title }
-            when (val r = library.addSticker(n.bytes, Origin.IMPORT, originRef = group, label = item.path.substringAfterLast('/'),
+            when (val r = library.addNormalized(n, Origin.IMPORT, originRef = group, label = item.path.substringAfterLast('/'),
                 emojis = n.exif?.emojis?.joinToString(",").orEmpty())) {
                 is AddResult.Added -> groups.getOrPut(group) { mutableListOf() } += r.id
                 is AddResult.Duplicate -> dup++
@@ -253,7 +254,7 @@ class ArchiveImporter(private val context: Context) {
                 if (bytes == null) { rejected++; continue }
                 val n = StickerNormalizer.normalize(bytes)
                 if (n !is Normalized.Ok) { rejected++; continue }
-                when (val r = library.addSticker(n.bytes, Origin.RESTORE, originRef = packName, label = s.optString("label"),
+                when (val r = library.addNormalized(n, Origin.RESTORE, originRef = packName, label = s.optString("label"),
                     tags = s.optString("tags"), rating = Rating.GENERAL, vault = vault)) {
                     is AddResult.Added -> { ids += r.id; added++ }
                     is AddResult.Duplicate -> { ids += r.id; dup++ }
@@ -294,7 +295,7 @@ class SharedImageImporter(private val context: Context) {
             val bytes = runCatching { context.contentResolver.openInputStream(uri)?.use { readBounded(it, StickerNormalizer.MAX_INPUT_BYTES) } }.getOrNull()
             val n = bytes?.let(StickerNormalizer::normalize)
             if (n !is Normalized.Ok) { rejected++; return@forEach }
-            when (val r = library.addSticker(n.bytes, Origin.SHARE, originRef = "Shared")) {
+            when (val r = library.addNormalized(n, Origin.SHARE, originRef = "Shared")) {
                 is AddResult.Added -> ids += r.id
                 is AddResult.Duplicate -> dup++
                 is AddResult.Rejected -> rejected++

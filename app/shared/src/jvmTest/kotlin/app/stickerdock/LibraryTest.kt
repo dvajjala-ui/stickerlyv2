@@ -113,6 +113,28 @@ class LibraryTest {
         assertEquals("WhatsApp Stickers 2", infos[1].name)
     }
 
+    @Test fun nearDuplicatesAreCaughtByPerceptualHash() {
+        val gradient = IntArray(72) { i -> val v = (i % 9) * 28; (0xff shl 24) or (v shl 16) or (v shl 8) or v }
+        val hash = app.stickerdock.core.Dhash.of(gradient)
+        val first = (lib.addSticker(TestWebp.vp8(salt = 1), Origin.IMPORT, dhash = hash) as AddResult.Added).id
+        // Different bytes (re-encoded), same picture: one flipped bit.
+        assertEquals(AddResult.Duplicate(first), lib.addSticker(TestWebp.vp8(salt = 2), Origin.IMPORT, dhash = hash xor 1L))
+        // A clearly different picture is accepted.
+        assertIs<AddResult.Added>(lib.addSticker(TestWebp.vp8(salt = 3), Origin.IMPORT, dhash = hash.inv()))
+        // Once the original is deleted, its lookalike may come back.
+        lib.deleteStickers(listOf(first))
+        assertIs<AddResult.Added>(lib.addSticker(TestWebp.vp8(salt = 4), Origin.IMPORT, dhash = hash))
+    }
+
+    @Test fun animationsSharingAFirstFrameAreNotMerged() {
+        val hash = 0x0f0f_0f0f_0f0f_0f0fL
+        assertIs<AddResult.Added>(lib.addSticker(TestWebp.animated(frames = 3, frameMs = 100), Origin.IMPORT, dhash = hash))
+        // Same first frame, different animation (frame count) → a different sticker.
+        assertIs<AddResult.Added>(lib.addSticker(TestWebp.animated(frames = 6, frameMs = 100), Origin.IMPORT, dhash = hash))
+        // Same first frame, same frames and timing, different bytes → near-duplicate.
+        assertIs<AddResult.Duplicate>(lib.addSticker(TestWebp.animated(frames = 3, frameMs = 100, extraBytes = 80), Origin.IMPORT, dhash = hash))
+    }
+
     @Test fun importPackingMergesTinyOriginalPacks() {
         // 5 stickers from "Office Pain", then 7 singles from 7 different original packs (typical WhatsApp cache).
         val office = (1..5).map { addStatic(it) }

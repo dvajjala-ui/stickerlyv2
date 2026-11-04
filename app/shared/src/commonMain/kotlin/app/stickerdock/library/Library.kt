@@ -109,11 +109,13 @@ class Library(
         emojis: String = "",
         rating: Rating = Rating.GENERAL,
         vault: Boolean = false,
+        dhash: Long? = null,
     ): AddResult {
         val info = Webp.inspect(bytes) ?: return AddResult.Rejected("Not a WebP sticker")
         val kind = if (info.animated) StickerKind.ANIMATED else StickerKind.STATIC
         StickerRules.problem(kind, info, bytes.size)?.let { return AddResult.Rejected(it) }
         val sha = Sha256.hex(bytes)
+        if (dhash != null) nearDuplicate(kind, Fingerprint(dhash, info.frames, info.durationMs))?.let { return AddResult.Duplicate(it) }
         q.stickerBySha(sha).executeAsOneOrNull()?.let { existing ->
             if (existing.deleted_at != null) {
                 q.undeleteSticker(now(), existing.id)
@@ -130,13 +132,43 @@ class Library(
             q.insertSticker(
                 id, sha, kind.name, rating.name, vault, bytes.size.toLong(), info.frames.toLong(), info.durationMs.toLong(),
                 Tags.cleanLabel(label), Tags.normalize(tags), Tags.emojis(emojis).joinToString(","),
-                origin.name, originRef?.take(200), t, t,
+                origin.name, originRef?.take(200), t, t, dhash,
             )
         } catch (e: Throwable) {
             files.delete(id)
             throw e
         }
+        if (dhash != null) hashes(kind)?.let { setHashes(kind, it + (id to Fingerprint(dhash, info.frames, info.durationMs))) }
         return AddResult.Added(id)
+    }
+
+    /** First-frame hash plus, for animations, frame count and duration (different animations often share a first frame). */
+    private data class Fingerprint(val hash: Long, val frames: Int, val durationMs: Int) {
+        fun matches(other: Fingerprint, animated: Boolean): Boolean {
+            if (app.stickerdock.core.Dhash.distance(hash, other.hash) > app.stickerdock.core.Dhash.NEAR_DUPLICATE) return false
+            if (!animated) return true
+            val longest = maxOf(durationMs, other.durationMs).coerceAtLeast(1)
+            return frames == other.frames && kotlin.math.abs(durationMs - other.durationMs) * 10 <= longest
+        }
+    }
+
+    // Near-duplicate index per kind, loaded on first use; copy-on-write so readers on other threads see a full list.
+    @kotlin.concurrent.Volatile private var staticHashes: List<Pair<String, Fingerprint>>? = null
+    @kotlin.concurrent.Volatile private var animatedHashes: List<Pair<String, Fingerprint>>? = null
+
+    private fun hashes(kind: StickerKind) = if (kind == StickerKind.ANIMATED) animatedHashes else staticHashes
+    private fun setHashes(kind: StickerKind, list: List<Pair<String, Fingerprint>>) {
+        if (kind == StickerKind.ANIMATED) animatedHashes = list else staticHashes = list
+    }
+
+    private fun nearDuplicate(kind: StickerKind, print: Fingerprint): String? {
+        val list = hashes(kind) ?: q.stickerHashes(kind.name).executeAsList()
+            .mapNotNull { row -> row.dhash?.let { row.id to Fingerprint(it, row.frame_count.toInt(), row.duration_ms.toInt()) } }
+            .also { setHashes(kind, it) }
+        return list.asSequence()
+            .filter { (_, other) -> print.matches(other, kind == StickerKind.ANIMATED) }
+            .map { it.first }
+            .firstOrNull { id -> q.stickerById(id).executeAsOneOrNull()?.let { it.deleted_at == null } == true }
     }
 
     fun sticker(id: String): StickerItem? = q.stickerById(id).executeAsOneOrNull()?.toItem()

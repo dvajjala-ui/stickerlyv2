@@ -86,7 +86,7 @@ fun PackScreen(app: AppModel, packId: String, onBack: () -> Unit) {
             )
         },
     ) { inner ->
-        LazyVerticalGrid(GridCells.Adaptive(84.dp), Modifier.padding(inner).fillMaxSize(), contentPadding = PaddingValues(12.dp),
+        LazyVerticalGrid(GridCells.Adaptive(76.dp), Modifier.padding(inner).fillMaxSize(), contentPadding = PaddingValues(12.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             item(span = { GridItemSpan(maxLineSpan) }) {
                 WhatsAppAddCard(app, current.id, current.count, current.whatsAppReady, whatsApp.targets, whatsApp.added[current.id].orEmpty(),
@@ -106,8 +106,8 @@ fun PackScreen(app: AppModel, packId: String, onBack: () -> Unit) {
                 }
             }
             items(stickers, key = { it.id }) { item ->
-                StickerTile(app.model(item), item.title, selected = item.id in selection, favorite = item.id == current.trayStickerId,
-                    animated = item.kind == StickerKind.ANIMATED,
+                StickerTile(app.model(item), item.title, selected = item.id in selection, cover = item.id == current.trayStickerId,
+                    favorite = item.favorite, animated = item.kind == StickerKind.ANIMATED,
                     onClick = { selection = selection.toggle(item.id) }, onLongClick = { selection = selection.toggle(item.id) })
             }
         }

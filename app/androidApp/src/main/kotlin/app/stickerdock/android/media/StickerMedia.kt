@@ -6,6 +6,7 @@ import android.graphics.ImageDecoder
 import android.graphics.Paint
 import android.graphics.RectF
 import app.stickerdock.core.AnimatedWebpFixer
+import app.stickerdock.core.Dhash
 import app.stickerdock.core.StickerKind
 import app.stickerdock.core.StickerPackExif
 import app.stickerdock.core.StickerRules
@@ -17,7 +18,10 @@ import kotlin.math.max
 import kotlin.math.roundToInt
 
 sealed interface Normalized {
-    data class Ok(val bytes: ByteArray, val kind: StickerKind, val exif: StickerPackExif?, val reencoded: Boolean) : Normalized
+    data class Ok(val bytes: ByteArray, val kind: StickerKind, val exif: StickerPackExif?, val reencoded: Boolean) : Normalized {
+        /** Perceptual hash of the first frame; null if it couldn't be decoded. */
+        val dhash: Long? by lazy { StickerNormalizer.dhash(bytes) }
+    }
     data class Fail(val reason: String) : Normalized
 }
 
@@ -88,6 +92,22 @@ object StickerNormalizer {
         }
     }
 
+    /** 64-bit dHash of the first frame (see [Dhash]); transparency is composited onto white. */
+    fun dhash(bytes: ByteArray): Long? {
+        val decoded = decode(bytes, maxSide = 64) ?: return null
+        return try {
+            val small = Bitmap.createScaledBitmap(decoded, Dhash.WIDTH, Dhash.HEIGHT, true)
+            val pixels = IntArray(Dhash.WIDTH * Dhash.HEIGHT)
+            small.getPixels(pixels, 0, Dhash.WIDTH, 0, 0, Dhash.WIDTH, Dhash.HEIGHT)
+            if (small !== decoded) small.recycle()
+            if (Dhash.informative(pixels)) Dhash.of(pixels) else null
+        } catch (_: Exception) {
+            null
+        } finally {
+            decoded.recycle()
+        }
+    }
+
     fun isGif(data: ByteArray) = data.size >= 6 && data[0] == 'G'.code.toByte() && data[1] == 'I'.code.toByte() && data[2] == 'F'.code.toByte()
 }
 
@@ -125,3 +145,15 @@ object TrayMaker {
         return target.takeIf { it.isFile }
     }
 }
+
+/** Adds a normalized sticker, always carrying its perceptual hash so near-duplicates are caught. */
+fun app.stickerdock.library.Library.addNormalized(
+    n: Normalized.Ok,
+    origin: app.stickerdock.library.Origin,
+    originRef: String? = null,
+    label: String = "",
+    tags: String = "",
+    emojis: String = "",
+    rating: app.stickerdock.core.Rating = app.stickerdock.core.Rating.GENERAL,
+    vault: Boolean = false,
+): app.stickerdock.library.AddResult = addSticker(n.bytes, origin, originRef, label, tags, emojis, rating, vault, n.dhash)

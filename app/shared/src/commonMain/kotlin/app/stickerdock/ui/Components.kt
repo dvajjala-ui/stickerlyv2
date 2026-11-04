@@ -54,6 +54,7 @@ fun StickerTile(
     favorite: Boolean = false,
     animated: Boolean = false,
     blurred: Boolean = false,
+    cover: Boolean = false,
     onClick: () -> Unit,
     onLongClick: (() -> Unit)? = null,
 ) {
@@ -72,6 +73,7 @@ fun StickerTile(
         if (blurred) Text("18+", Modifier.align(Alignment.Center).clip(CircleShape).background(Brand.Adult)
             .padding(horizontal = 8.dp, vertical = 3.dp), color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold)
         Row(Modifier.align(Alignment.TopEnd).padding(4.dp), horizontalArrangement = Arrangement.spacedBy(3.dp)) {
+            if (cover) Badge("Cover", Brand.Volt, Brand.Ink)
             if (animated) Badge("GIF")
             if (favorite) Badge("★")
         }

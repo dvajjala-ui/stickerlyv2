@@ -1,5 +1,6 @@
 package app.stickerdock.android.dual
 
+import app.stickerdock.android.media.addNormalized
 import android.content.ContentProvider
 import android.content.ContentValues
 import android.content.UriMatcher
@@ -125,7 +126,7 @@ class SyncProvider : ContentProvider() {
                     is Normalized.Fail -> library.recordRejected(session, key, n.reason, bytes.size)
                     is Normalized.Ok -> {
                         val name = n.exif?.packName.orEmpty()
-                        val result = library.addSticker(n.bytes, Origin.IMPORT, originRef = name.ifBlank { group },
+                        val result = library.addNormalized(n, Origin.IMPORT, originRef = name.ifBlank { group },
                             label = key.substringAfterLast('/'), emojis = n.exif?.emojis?.joinToString(",").orEmpty())
                         library.recordImport(session, key, result, name, bytes.size)
                     }

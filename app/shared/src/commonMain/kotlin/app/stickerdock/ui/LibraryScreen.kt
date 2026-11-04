@@ -35,6 +35,9 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SegmentedButton
+import androidx.compose.material3.SegmentedButtonDefaults
+import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -120,18 +123,20 @@ fun LibraryScreen(app: AppModel, modifier: Modifier, onOpenPack: (String) -> Uni
                 value = query, onValueChange = { query = it }, singleLine = true,
                 leadingIcon = { Icon(Icons.Filled.Search, null) },
                 trailingIcon = { if (query.isNotEmpty()) IconButton({ query = "" }) { Icon(Icons.Filled.Clear, "Clear") } },
-                placeholder = { Text("Search \"good morning\", \"office\", 😂…") },
+                placeholder = { Text("Search stickers, moods, packs", maxLines = 1) },
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
                 shape = RoundedCornerShape(16.dp),
             )
-            LazyRow(contentPadding = PaddingValues(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                item {
-                    FilterChip(mode == LibraryMode.STICKERS, { mode = LibraryMode.STICKERS }, { Text("Stickers") })
+            SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp)) {
+                SegmentedButton(mode == LibraryMode.STICKERS, { mode = LibraryMode.STICKERS }, SegmentedButtonDefaults.itemShape(0, 2)) {
+                    Text("Stickers")
                 }
-                item { FilterChip(mode == LibraryMode.PACKS, { mode = LibraryMode.PACKS }, { Text("Packs · ${packs.size}") }) }
-                if (mode == LibraryMode.STICKERS) items(KindFilter.entries) { f ->
-                    FilterChip(kindFilter == f, { kindFilter = f }, { Text(f.label) })
+                SegmentedButton(mode == LibraryMode.PACKS, { mode = LibraryMode.PACKS }, SegmentedButtonDefaults.itemShape(1, 2)) {
+                    Text("Packs · ${packs.size}")
                 }
+            }
+            if (mode == LibraryMode.STICKERS) LazyRow(contentPadding = PaddingValues(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                items(KindFilter.entries) { f -> FilterChip(kindFilter == f, { kindFilter = f }, { Text(f.label) }) }
             }
             progress?.let { p ->
                 val key = "${p.label}-${p.added}-${p.running}"
@@ -147,7 +152,7 @@ fun LibraryScreen(app: AppModel, modifier: Modifier, onOpenPack: (String) -> Uni
                         "Import ZIP or .wastickers" to host::importArchives,
                     )
                 mode == LibraryMode.STICKERS -> LazyVerticalGrid(
-                    GridCells.Adaptive(84.dp), contentPadding = PaddingValues(12.dp),
+                    GridCells.Adaptive(76.dp), contentPadding = PaddingValues(12.dp),
                     horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
                     items(stickers, key = { it.id }) { item ->

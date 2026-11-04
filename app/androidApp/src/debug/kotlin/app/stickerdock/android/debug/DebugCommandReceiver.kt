@@ -1,5 +1,6 @@
 package app.stickerdock.android.debug
 
+import app.stickerdock.android.media.addNormalized
 import android.content.BroadcastReceiver
 import android.content.ContentValues
 import android.content.Context
@@ -44,7 +45,7 @@ class DebugCommandReceiver : BroadcastReceiver() {
                                 is Normalized.Fail -> { rejected++; reasons.merge(n.reason.take(70), 1, Int::plus) }
                                 is Normalized.Ok -> {
                                     val group = n.exif?.packName ?: ""
-                                    when (val r = graph.library.addSticker(n.bytes, Origin.IMPORT, originRef = group.ifBlank { null }, label = f.name,
+                                    when (val r = graph.library.addNormalized(n, Origin.IMPORT, originRef = group.ifBlank { null }, label = f.name,
                                         emojis = n.exif?.emojis?.joinToString(",").orEmpty())) {
                                         is AddResult.Added -> { added++; groups.getOrPut(group) { mutableListOf() } += r.id }
                                         is AddResult.Duplicate -> dup++

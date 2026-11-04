@@ -108,6 +108,15 @@ class CoreTest {
         assertNull(app.stickerdock.core.AnimatedWebpFixer.fix(TestWebp.animated(frames = 3, width = 640, height = 640)))
     }
 
+    @Test fun dhashIsStableAndTransparencyCompositesOnWhite() {
+        val white = IntArray(72) { 0xffffffff.toInt() }
+        val transparent = IntArray(72) { 0 }
+        assertEquals(app.stickerdock.core.Dhash.of(white), app.stickerdock.core.Dhash.of(transparent))
+        val ramp = IntArray(72) { i -> val v = 255 - (i % 9) * 28; (0xff shl 24) or (v shl 16) or (v shl 8) or v }
+        assertEquals(-1L, app.stickerdock.core.Dhash.of(ramp), "strictly darker to the right sets every bit")
+        assertEquals(64, app.stickerdock.core.Dhash.distance(0L, -1L))
+    }
+
     @Test fun normalizesTagsAndEmojis() {
         assertEquals("office pain monday", Tags.normalize("Office, PAIN #monday office"))
         assertEquals(listOf("😂", "👍🏽", "❤️"), Tags.emojis("lol 😂 ok 👍🏽 love ❤️ extra 🔥"))

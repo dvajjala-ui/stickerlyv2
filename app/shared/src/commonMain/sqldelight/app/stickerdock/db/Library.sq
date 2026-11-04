@@ -21,7 +21,8 @@ CREATE TABLE sticker (
     last_used_at INTEGER,
     created_at INTEGER NOT NULL,
     updated_at INTEGER NOT NULL,
-    deleted_at INTEGER                  -- soft delete enables undo; purged later
+    deleted_at INTEGER,                 -- soft delete enables undo; purged later
+    dhash INTEGER                       -- 64-bit difference hash of the first frame (near-duplicate check)
 );
 
 CREATE INDEX sticker_browse ON sticker(deleted_at, kind, created_at);
@@ -81,8 +82,11 @@ CREATE TABLE import_item (
 -- ---------- stickers ----------
 insertSticker:
 INSERT INTO sticker(id, sha256, kind, rating, vault, byte_size, frame_count, duration_ms, label, tags, emojis,
-    origin, origin_ref, favorite, use_count, last_used_at, created_at, updated_at, deleted_at)
-VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0, NULL, ?, ?, NULL);
+    origin, origin_ref, favorite, use_count, last_used_at, created_at, updated_at, deleted_at, dhash)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0, NULL, ?, ?, NULL, ?);
+
+stickerHashes:
+SELECT id, dhash, frame_count, duration_ms FROM sticker WHERE dhash IS NOT NULL AND deleted_at IS NULL AND kind = ?;
 
 stickerById:
 SELECT * FROM sticker WHERE id = ?;

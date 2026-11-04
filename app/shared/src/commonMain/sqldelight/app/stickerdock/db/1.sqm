@@ -1,0 +1,2 @@
+-- v2: perceptual hash for near-duplicate detection (null for stickers imported before v2)
+ALTER TABLE sticker ADD COLUMN dhash INTEGER;
