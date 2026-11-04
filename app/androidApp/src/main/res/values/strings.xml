@@ -1,0 +1,5 @@
+<resources>
+    <string name="app_name">StickerDock</string>
+    <string name="keyboard_name">StickerDock stickers</string>
+    <string name="keyboard_subtype">Stickers</string>
+</resources>

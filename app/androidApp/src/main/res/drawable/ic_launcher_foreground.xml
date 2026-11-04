@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- A sticker with a peeled corner, on the 108dp adaptive-icon grid (safe zone 66dp). -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp" android:height="108dp" android:viewportWidth="108" android:viewportHeight="108">
+    <path android:fillColor="#FFD9FF6A"
+        android:pathData="M38,30h32a8,8 0,0 1,8 8v20l-20,20h-20a8,8 0,0 1,-8 -8v-32a8,8 0,0 1,8 -8z" />
+    <path android:fillColor="#FFF7F6F1"
+        android:pathData="M78,58l-20,20v-12a8,8 0,0 1,8 -8z" />
+    <path android:fillColor="#FF12130F"
+        android:pathData="M45,48a4,4 0,1 0,8 0a4,4 0,1 0,-8 0zM59,48a4,4 0,1 0,8 0a4,4 0,1 0,-8 0z" />
+    <path android:fillColor="#00000000" android:strokeColor="#FF12130F" android:strokeWidth="3.5"
+        android:strokeLineCap="round" android:pathData="M46,58q8,7 16,0" />
+</vector>

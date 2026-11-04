@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Debug-only hooks for adb-driven device checks. Not present in release builds. -->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+    <application>
+        <receiver
+            android:name=".debug.DebugCommandReceiver"
+            android:exported="true"
+            tools:ignore="ExportedReceiver">
+            <intent-filter>
+                <action android:name="app.stickerdock.debug.COMMAND" />
+            </intent-filter>
+        </receiver>
+        <activity
+            android:name=".keyboard.KeyboardTestActivity"
+            android:exported="true"
+            tools:replace="android:exported" />
+    </application>
+</manifest>

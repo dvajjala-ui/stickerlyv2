@@ -1,0 +1,41 @@
+# Secrets and local machine config — never commit
+.env
+.env.*
+!.env.example
+*.keystore
+*.jks
+local.properties
+service-account*.json
+
+# Build output
+**/build/
+**/.gradle/
+**/.kotlin/
+app/**/databases/*.db
+*.apk
+*.aab
+*.ipa
+
+# IDEs
+.idea/
+*.iml
+.vscode/
+.DS_Store
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+.pytest_cache/
+.ruff_cache/
+backend/worker/.cache/
+backend/worker/out/
+
+# Node
+node_modules/
+admin/dist/
+backend/supabase/.temp/
+
+# Local evidence / scratch (large or personal)
+work/
+device-facts*.txt

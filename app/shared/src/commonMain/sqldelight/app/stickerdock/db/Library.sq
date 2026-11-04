@@ -1,0 +1,259 @@
+import kotlin.Boolean;
+
+-- Sticker-first library: one row + one file per unique sticker (sha256 of stored WebP bytes).
+-- Packs are ordered collections that reference stickers; a sticker may live in many packs.
+CREATE TABLE sticker (
+    id TEXT NOT NULL PRIMARY KEY,
+    sha256 TEXT NOT NULL UNIQUE,
+    kind TEXT NOT NULL,                 -- STATIC | ANIMATED
+    rating TEXT NOT NULL DEFAULT 'GENERAL', -- GENERAL | ADULT (18+ humor lane)
+    vault INTEGER AS Boolean NOT NULL DEFAULT 0, -- private, never synced or shared publicly
+    byte_size INTEGER NOT NULL,
+    frame_count INTEGER NOT NULL DEFAULT 1,
+    duration_ms INTEGER NOT NULL DEFAULT 0,
+    label TEXT NOT NULL DEFAULT '',
+    tags TEXT NOT NULL DEFAULT '',      -- normalized, space separated
+    emojis TEXT NOT NULL DEFAULT '',    -- up to 3, comma separated
+    origin TEXT NOT NULL,               -- IMPORT | CREATE | DISCOVER | SHARE | RESTORE
+    origin_ref TEXT,                    -- discover id, archive/pack name or source file name
+    favorite INTEGER AS Boolean NOT NULL DEFAULT 0,
+    use_count INTEGER NOT NULL DEFAULT 0,
+    last_used_at INTEGER,
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL,
+    deleted_at INTEGER                  -- soft delete enables undo; purged later
+);
+
+CREATE INDEX sticker_browse ON sticker(deleted_at, kind, created_at);
+CREATE INDEX sticker_recent ON sticker(last_used_at);
+
+CREATE TABLE pack (
+    id TEXT NOT NULL PRIMARY KEY,       -- also the WhatsApp sticker_pack_identifier
+    name TEXT NOT NULL,
+    publisher TEXT NOT NULL DEFAULT 'StickerDock',
+    kind TEXT NOT NULL,
+    rating TEXT NOT NULL DEFAULT 'GENERAL',
+    vault INTEGER AS Boolean NOT NULL DEFAULT 0,
+    tray_sticker_id TEXT,
+    data_version INTEGER NOT NULL DEFAULT 1, -- WhatsApp image_data_version; bump on any visual change
+    on_shelf INTEGER AS Boolean NOT NULL DEFAULT 0, -- exposed to WhatsApp's provider
+    origin TEXT NOT NULL,               -- USER | IMPORT | DISCOVER
+    remote_id TEXT,                     -- Discover pack id for followed packs
+    remote_version INTEGER,
+    follow_updates INTEGER AS Boolean NOT NULL DEFAULT 0,
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL
+);
+
+CREATE UNIQUE INDEX pack_remote ON pack(remote_id) WHERE remote_id IS NOT NULL;
+
+CREATE TABLE pack_item (
+    pack_id TEXT NOT NULL REFERENCES pack(id) ON DELETE CASCADE,
+    sticker_id TEXT NOT NULL REFERENCES sticker(id) ON DELETE CASCADE,
+    position INTEGER NOT NULL,
+    PRIMARY KEY (pack_id, sticker_id)
+);
+
+CREATE INDEX pack_item_sticker ON pack_item(sticker_id);
+
+-- Resumable imports (folder scans survive process death).
+CREATE TABLE import_session (
+    id TEXT NOT NULL PRIMARY KEY,
+    source TEXT NOT NULL,               -- tree/document URI or label
+    mode TEXT NOT NULL,                 -- FOLDER | ARCHIVE
+    state TEXT NOT NULL DEFAULT 'RUNNING', -- RUNNING | PAUSED | DONE | FAILED
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL,
+    message TEXT
+);
+
+CREATE TABLE import_item (
+    session_id TEXT NOT NULL REFERENCES import_session(id) ON DELETE CASCADE,
+    source_key TEXT NOT NULL,
+    outcome TEXT NOT NULL,              -- ADDED | DUPLICATE | REJECTED
+    sticker_id TEXT,
+    group_key TEXT,                     -- original pack name (EXIF) or folder; packs are built per group
+    reason TEXT,
+    bytes INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY (session_id, source_key)
+);
+
+-- ---------- stickers ----------
+insertSticker:
+INSERT INTO sticker(id, sha256, kind, rating, vault, byte_size, frame_count, duration_ms, label, tags, emojis,
+    origin, origin_ref, favorite, use_count, last_used_at, created_at, updated_at, deleted_at)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0, NULL, ?, ?, NULL);
+
+stickerById:
+SELECT * FROM sticker WHERE id = ?;
+
+stickerBySha:
+SELECT * FROM sticker WHERE sha256 = ?;
+
+undeleteSticker:
+UPDATE sticker SET deleted_at = NULL, updated_at = :now WHERE id = :id;
+
+browseStickers:
+SELECT * FROM sticker
+WHERE deleted_at IS NULL
+  AND (:kind IS NULL OR kind = :kind)
+  AND (:favoriteOnly = 0 OR favorite = 1)
+  AND (:includeAdult = 1 OR rating = 'GENERAL')
+  AND vault = :vault
+ORDER BY created_at DESC, id
+LIMIT :limit OFFSET :offset;
+
+searchStickers:
+SELECT * FROM sticker
+WHERE deleted_at IS NULL
+  AND vault = :vault
+  AND (:includeAdult = 1 OR rating = 'GENERAL')
+  AND (:kind IS NULL OR kind = :kind)
+  AND (label LIKE :pattern ESCAPE '\' OR tags LIKE :pattern ESCAPE '\' OR emojis LIKE :pattern ESCAPE '\'
+       OR origin_ref LIKE :pattern ESCAPE '\'
+       OR id IN (SELECT pi.sticker_id FROM pack_item pi JOIN pack p ON p.id = pi.pack_id WHERE p.name LIKE :pattern ESCAPE '\'))
+ORDER BY CASE WHEN label LIKE :pattern ESCAPE '\' THEN 0 WHEN tags LIKE :pattern ESCAPE '\' THEN 1 ELSE 2 END,
+    use_count DESC, created_at DESC
+LIMIT :limit;
+
+recentStickers:
+SELECT * FROM sticker
+WHERE deleted_at IS NULL AND last_used_at IS NOT NULL AND vault = :vault AND (:includeAdult = 1 OR rating = 'GENERAL')
+ORDER BY last_used_at DESC
+LIMIT :limit;
+
+countStickers:
+SELECT kind, COUNT(*) AS n FROM sticker WHERE deleted_at IS NULL AND vault = 0 GROUP BY kind;
+
+updateStickerMeta:
+UPDATE sticker SET label = :label, tags = :tags, emojis = :emojis, updated_at = :now WHERE id = :id;
+
+setStickerRating:
+UPDATE sticker SET rating = :rating, updated_at = :now WHERE id = :id;
+
+setFavorite:
+UPDATE sticker SET favorite = :favorite, updated_at = :now WHERE id = :id;
+
+markUsed:
+UPDATE sticker SET use_count = use_count + 1, last_used_at = :now WHERE id = :id;
+
+softDeleteSticker:
+UPDATE sticker SET deleted_at = :now, updated_at = :now WHERE id = :id;
+
+purgeableStickers:
+SELECT id FROM sticker WHERE deleted_at IS NOT NULL AND deleted_at < :before;
+
+purgeSticker:
+DELETE FROM sticker WHERE id = ?;
+
+-- ---------- packs ----------
+insertPack:
+INSERT INTO pack(id, name, publisher, kind, rating, vault, tray_sticker_id, data_version, on_shelf, origin,
+    remote_id, remote_version, follow_updates, created_at, updated_at)
+VALUES (?, ?, ?, ?, ?, ?, NULL, 1, 0, ?, ?, ?, ?, ?, ?);
+
+packById:
+SELECT * FROM pack WHERE id = ?;
+
+packByRemoteId:
+SELECT * FROM pack WHERE remote_id = ?;
+
+packSummaries:
+SELECT p.*,
+    (SELECT COUNT(*) FROM pack_item pi JOIN sticker s ON s.id = pi.sticker_id
+        WHERE pi.pack_id = p.id AND s.deleted_at IS NULL) AS item_count
+FROM pack p
+WHERE p.vault = :vault AND (:includeAdult = 1 OR p.rating = 'GENERAL')
+ORDER BY p.on_shelf DESC, p.updated_at DESC;
+
+shelfPacks:
+SELECT p.*,
+    (SELECT COUNT(*) FROM pack_item pi JOIN sticker s ON s.id = pi.sticker_id
+        WHERE pi.pack_id = p.id AND s.deleted_at IS NULL) AS item_count
+FROM pack p
+WHERE p.on_shelf = 1
+ORDER BY p.created_at;
+
+packsContaining:
+SELECT p.* FROM pack p JOIN pack_item pi ON pi.pack_id = p.id WHERE pi.sticker_id = ?;
+
+renamePack:
+UPDATE pack SET name = :name, data_version = data_version + 1, updated_at = :now WHERE id = :id;
+
+setPackTray:
+UPDATE pack SET tray_sticker_id = :trayId, data_version = data_version + 1, updated_at = :now WHERE id = :id;
+
+setPackShelf:
+UPDATE pack SET on_shelf = :onShelf, updated_at = :now WHERE id = :id;
+
+setPackRating:
+UPDATE pack SET rating = :rating, updated_at = :now WHERE id = :id;
+
+setPackRemoteVersion:
+UPDATE pack SET remote_version = :version, updated_at = :now WHERE id = :id;
+
+bumpPack:
+UPDATE pack SET data_version = data_version + 1, updated_at = :now WHERE id = :id;
+
+deletePack:
+DELETE FROM pack WHERE id = ?;
+
+-- ---------- pack items ----------
+addItem:
+INSERT OR IGNORE INTO pack_item(pack_id, sticker_id, position) VALUES (?, ?, ?);
+
+removeItem:
+DELETE FROM pack_item WHERE pack_id = ? AND sticker_id = ?;
+
+setItemPosition:
+UPDATE pack_item SET position = :position WHERE pack_id = :packId AND sticker_id = :stickerId;
+
+maxPosition:
+SELECT MAX(position) AS maxPos FROM pack_item WHERE pack_id = ?;
+
+countItems:
+SELECT COUNT(*) FROM pack_item pi JOIN sticker s ON s.id = pi.sticker_id WHERE pi.pack_id = ? AND s.deleted_at IS NULL;
+
+packStickers:
+SELECT s.* FROM pack_item pi JOIN sticker s ON s.id = pi.sticker_id
+WHERE pi.pack_id = ? AND s.deleted_at IS NULL
+ORDER BY pi.position, s.created_at;
+
+packPreview:
+SELECT s.* FROM pack_item pi JOIN sticker s ON s.id = pi.sticker_id
+WHERE pi.pack_id = ? AND s.deleted_at IS NULL
+ORDER BY pi.position
+LIMIT 4;
+
+isInPack:
+SELECT COUNT(*) FROM pack_item WHERE pack_id = ? AND sticker_id = ?;
+
+-- ---------- imports ----------
+insertImportSession:
+INSERT INTO import_session(id, source, mode, state, created_at, updated_at, message) VALUES (?, ?, ?, 'RUNNING', ?, ?, NULL);
+
+importSessionById:
+SELECT * FROM import_session WHERE id = ?;
+
+activeImportSessions:
+SELECT * FROM import_session WHERE state IN ('RUNNING', 'PAUSED') ORDER BY created_at DESC;
+
+setImportState:
+UPDATE import_session SET state = :state, message = :message, updated_at = :now WHERE id = :id;
+
+insertImportItem:
+INSERT OR REPLACE INTO import_item(session_id, source_key, outcome, sticker_id, group_key, reason, bytes) VALUES (?, ?, ?, ?, ?, ?, ?);
+
+importItemKeys:
+SELECT source_key FROM import_item WHERE session_id = ?;
+
+importTotals:
+SELECT outcome, COUNT(*) AS n FROM import_item WHERE session_id = ? GROUP BY outcome;
+
+importAddedGroups:
+SELECT group_key, sticker_id FROM import_item
+WHERE session_id = ? AND outcome = 'ADDED' AND sticker_id IS NOT NULL
+ORDER BY group_key, rowid;
+
+deleteImportSession:
+DELETE FROM import_session WHERE id = ?;
