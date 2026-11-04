@@ -80,8 +80,8 @@ class FolderImporter(private val context: Context) {
             when (val n = StickerNormalizer.normalize(bytes)) {
                 is Normalized.Fail -> { library.recordRejected(sessionId, entry.docId, n.reason, bytes.size); rejected++ }
                 is Normalized.Ok -> {
-                    val group = n.exif?.packName ?: entry.folder
-                    val result = library.addSticker(n.bytes, Origin.IMPORT, originRef = group,
+                    val group = n.exif?.packName.orEmpty()
+                    val result = library.addSticker(n.bytes, Origin.IMPORT, originRef = group.ifBlank { entry.folder },
                         label = entry.name, emojis = n.exif?.emojis?.joinToString(",").orEmpty())
                     library.recordImport(sessionId, entry.docId, result, group, bytes.size)
                     when (result) {
@@ -100,13 +100,9 @@ class FolderImporter(private val context: Context) {
         return ImportSummary(packs, added, dup, rejected)
     }
 
-    private fun buildPacks(sessionId: String, fallback: String): Int {
-        val library = graph.library
-        var count = 0
-        library.importedGroups(sessionId).forEach { (group, ids) ->
-            count += library.autoPack(ids, group.ifBlank { fallback }.take(60)).size
-        }
-        return count
+    private fun buildPacks(sessionId: String, rootName: String): Int {
+        val fallback = if (rootName.contains("WhatsApp", ignoreCase = true)) "From WhatsApp" else rootName.take(60)
+        return graph.library.packImported(graph.library.importedGroups(sessionId), fallback).size
     }
 
     companion object {
@@ -237,7 +233,7 @@ class ArchiveImporter(private val context: Context) {
                 is AddResult.Rejected -> rejected++
             }
         }
-        val packs = groups.entries.sumOf { (group, ids) -> library.autoPack(ids, group).size }
+        val packs = library.packImported(groups, title, minGroup = 3).size
         return ImportSummary(packs, groups.values.sumOf { it.size }, dup, rejected)
     }
 

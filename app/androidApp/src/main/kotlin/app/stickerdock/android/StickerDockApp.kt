@@ -17,6 +17,12 @@ import java.io.File
 import java.util.UUID
 
 class StickerDockApp : Application(), SingletonImageLoader.Factory {
+    override fun onCreate() {
+        super.onCreate()
+        app.stickerdock.android.dual.CompanionRelayActivity.configure(this)
+        MaintenanceWorker.schedule(this)
+    }
+
     override fun newImageLoader(context: coil3.PlatformContext): ImageLoader =
         ImageLoader.Builder(context)
             .components { add(AnimatedImageDecoder.Factory()) }

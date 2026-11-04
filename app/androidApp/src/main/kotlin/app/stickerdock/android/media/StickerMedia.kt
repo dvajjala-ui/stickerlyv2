@@ -5,6 +5,7 @@ import android.graphics.Canvas
 import android.graphics.ImageDecoder
 import android.graphics.Paint
 import android.graphics.RectF
+import app.stickerdock.core.AnimatedWebpFixer
 import app.stickerdock.core.StickerKind
 import app.stickerdock.core.StickerPackExif
 import app.stickerdock.core.StickerRules
@@ -36,7 +37,12 @@ object StickerNormalizer {
             val kind = if (info.animated) StickerKind.ANIMATED else StickerKind.STATIC
             val problem = StickerRules.problem(kind, info, input.size)
             if (problem == null) return Normalized.Ok(input, kind, exif, reencoded = false)
-            if (info.animated) return Normalized.Fail("Animated sticker can't be used as-is: $problem")
+            if (info.animated) {
+                // Container-level repair (centre on 512², drop alternate keyframes, fit timing) keeps frame quality.
+                val fixed = AnimatedWebpFixer.fix(input)
+                return if (fixed != null) Normalized.Ok(fixed, kind, exif, reencoded = true)
+                else Normalized.Fail("Animated sticker can't be used as-is: $problem")
+            }
         }
         if (isGif(input)) return Normalized.Fail("GIFs need the animated creator")
         val bitmap = decode(input) ?: return Normalized.Fail("Unsupported or damaged image")

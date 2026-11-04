@@ -34,11 +34,11 @@ object TestWebp {
         return riff(body)
     }
 
-    fun animated(frames: Int = 3, frameMs: Int = 100, width: Int = 512, height: Int = 512): ByteArray {
+    fun animated(frames: Int = 3, frameMs: Int = 100, width: Int = 512, height: Int = 512, extraBytes: Int = 64): ByteArray {
         val vp8x = byteArrayOf(0x12, 0, 0, 0) + le(width - 1, 3) + le(height - 1, 3)
         var body = chunk("VP8X", vp8x) + chunk("ANIM", ByteArray(6))
         repeat(frames) { i ->
-            val frame = vp8(width, height, salt = i).let { it.copyOfRange(12, it.size) }
+            val frame = vp8(width, height, salt = i, extraBytes = extraBytes).let { it.copyOfRange(12, it.size) }
             val header = le(0, 3) + le(0, 3) + le(width - 1, 3) + le(height - 1, 3) + le(frameMs, 3) + byteArrayOf(2)
             body += chunk("ANMF", header + frame)
         }

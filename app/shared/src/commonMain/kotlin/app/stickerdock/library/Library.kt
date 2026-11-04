@@ -301,6 +301,20 @@ class Library(
         return created
     }
 
+    /**
+     * Packs for an import. Received WhatsApp stickers come from hundreds of original packs, so an original
+     * pack name only becomes its own pack when it has at least [minGroup] stickers; the rest are merged
+     * into [fallback] packs of 30 (static and animated apart). Original names stay searchable via originRef.
+     */
+    fun packImported(groups: Map<String, List<String>>, fallback: String, minGroup: Int = 4): List<String> {
+        val own = groups.filter { (name, ids) -> name.isNotBlank() && ids.size >= minGroup }
+        val rest = groups.filterKeys { it !in own.keys }.values.flatten()
+        val created = mutableListOf<String>()
+        own.forEach { (name, ids) -> created += autoPack(ids, name.take(StickerRules.MAX_NAME)) }
+        if (rest.isNotEmpty()) created += autoPack(rest, fallback)
+        return created
+    }
+
     fun removeFromPack(packId: String, stickerIds: Collection<String>) {
         q.transaction {
             stickerIds.forEach { q.removeItem(packId, it) }
@@ -345,6 +359,8 @@ class Library(
     }
 
     fun setRemoteVersion(packId: String, version: Long) { q.setPackRemoteVersion(version, now(), packId) }
+
+    fun remoteVersion(packId: String): Long? = q.packById(packId).executeAsOneOrNull()?.remote_version
 
     /** Deletes the pack only; its stickers stay in the library. */
     fun deletePack(packId: String) {

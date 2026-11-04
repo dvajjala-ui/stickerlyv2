@@ -69,6 +69,20 @@
             </intent-filter>
         </activity>
 
+        <!-- Receives forwarded share intents from the main profile inside clone profiles. -->
+        <activity
+            android:name=".dual.CompanionRelayActivity"
+            android:exported="true"
+            android:excludeFromRecents="true"
+            android:noHistory="true"
+            android:theme="@android:style/Theme.Translucent.NoTitleBar">
+            <intent-filter>
+                <action android:name="android.intent.action.SEND" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="application/vnd.stickerdock.request" />
+            </intent-filter>
+        </activity>
+
         <!-- Plain field that logs what a keyboard commits; used for on-device keyboard checks
              without touching any messaging app. -->
         <activity

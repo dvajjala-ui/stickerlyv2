@@ -113,6 +113,17 @@ class LibraryTest {
         assertEquals("WhatsApp Stickers 2", infos[1].name)
     }
 
+    @Test fun importPackingMergesTinyOriginalPacks() {
+        // 5 stickers from "Office Pain", then 7 singles from 7 different original packs (typical WhatsApp cache).
+        val office = (1..5).map { addStatic(it) }
+        val singles = (10..16).map { addStatic(it) }
+        val groups = mapOf("Office Pain" to office) + singles.mapIndexed { i, id -> "Pack $i" to listOf(id) }
+        val created = lib.packImported(groups, "From WhatsApp")
+        val infos = created.map { lib.pack(it)!! }
+        assertEquals(listOf("Office Pain", "From WhatsApp"), infos.map { it.name })
+        assertEquals(listOf(5, 7), infos.map { it.count })
+    }
+
     @Test fun searchMatchesLabelsTagsAndPackNames() {
         val pack = lib.createPack("Desi Mom Reactions", StickerKind.STATIC)
         val a = addStatic(1, label = "Beta khana kha lo")

@@ -82,6 +82,32 @@ class CoreTest {
         assertTrue(assertNotNull(Webp.inspect(wrapped)).extended)
     }
 
+    @Test fun fixerCentresSmallAnimationsOnA512Canvas() {
+        val small = TestWebp.animated(frames = 3, frameMs = 90, width = 256, height = 256)
+        assertEquals("Must be 512 × 512 (found 256 × 256)", StickerRules.problem(StickerKind.ANIMATED, Webp.inspect(small), small.size))
+        val fixed = assertNotNull(app.stickerdock.core.AnimatedWebpFixer.fix(small))
+        val info = assertNotNull(Webp.inspect(fixed))
+        assertEquals(512, info.width); assertEquals(3, info.frames); assertEquals(270, info.durationMs)
+        assertNull(StickerRules.problem(StickerKind.ANIMATED, info, fixed.size))
+    }
+
+    @Test fun fixerDropsAlternateKeyframesToFitSizeAndKeepsTiming() {
+        val big = TestWebp.animated(frames = 12, frameMs = 100, extraBytes = 60_000)
+        assertTrue(big.size > 500_000)
+        val fixed = assertNotNull(app.stickerdock.core.AnimatedWebpFixer.fix(big))
+        val info = assertNotNull(Webp.inspect(fixed))
+        assertTrue(fixed.size <= 500_000)
+        assertTrue(info.frames < 12)
+        assertEquals(1200, info.durationMs, "dropped frames hand their time to neighbours")
+    }
+
+    @Test fun fixerScalesLongAnimationsAndRejectsLargeCanvas() {
+        val long = TestWebp.animated(frames = 4, frameMs = 4000)
+        val fixed = assertNotNull(app.stickerdock.core.AnimatedWebpFixer.fix(long))
+        assertTrue(Webp.inspect(fixed)!!.durationMs <= 10_000)
+        assertNull(app.stickerdock.core.AnimatedWebpFixer.fix(TestWebp.animated(frames = 3, width = 640, height = 640)))
+    }
+
     @Test fun normalizesTagsAndEmojis() {
         assertEquals("office pain monday", Tags.normalize("Office, PAIN #monday office"))
         assertEquals(listOf("😂", "👍🏽", "❤️"), Tags.emojis("lol 😂 ok 👍🏽 love ❤️ extra 🔥"))

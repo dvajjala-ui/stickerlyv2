@@ -40,14 +40,32 @@ object Dual {
         context.getSystemService(UserManager::class.java).userProfiles.filter { userId(it) != myUserId() }
     }.getOrDefault(emptyList())
 
-    /** Profiles where a StickerDock copy is installed and launchable. */
-    fun companionProfiles(context: Context): List<UserHandle> = runCatching {
-        context.getSystemService(CrossProfileApps::class.java).targetUserProfiles
-    }.getOrDefault(emptyList())
+    /**
+     * Profiles where a StickerDock copy is installed. CrossProfileApps doesn't report clone profiles from
+     * the parent (One UI 8.5), so with the cross-user grant we ask each profile's copy directly.
+     */
+    fun companionProfiles(context: Context): List<UserHandle> {
+        val listed = runCatching { context.getSystemService(CrossProfileApps::class.java).targetUserProfiles }.getOrDefault(emptyList())
+        if (isCompanion(context) || !crossUserGranted(context)) return listed
+        val probed = otherProfiles(context).filter { profile ->
+            runCatching {
+                context.contentResolver.call(Uri.parse("content://${userId(profile)}@${context.packageName}.sync"), "whoami", null, null)
+            }.getOrNull()?.getBoolean("companion") == true
+        }
+        return (listed + probed).distinctBy(::userId)
+    }
 
-    fun launchCompanion(context: Context, profile: UserHandle) {
-        val main = ComponentName(context.packageName, "app.stickerdock.android.MainActivity")
-        context.getSystemService(CrossProfileApps::class.java).startMainActivity(main, profile)
+    /**
+     * Opens the companion in [profile]. Prefers CrossProfileApps; falls back to a share intent that Android
+     * forwards from the parent into clone profiles (only the companion has the relay enabled).
+     */
+    fun launchCompanion(context: Context, profile: UserHandle, pendingId: String) {
+        val apps = context.getSystemService(CrossProfileApps::class.java)
+        if (runCatching { profile in apps.targetUserProfiles }.getOrDefault(false)) {
+            apps.startMainActivity(ComponentName(context.packageName, "app.stickerdock.android.MainActivity"), profile)
+            return
+        }
+        context.startActivity(CompanionRelayActivity.request(pendingId).addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK))
     }
 
     /** True/false from WhatsApp's whitelist provider in [userId]; null if it can't be asked. */

@@ -154,10 +154,13 @@ class AndroidHost(private val activity: ComponentActivity, private val graph: Ap
         if (target.kind == TargetKind.CLONE) {
             val profile = Dual.companionProfiles(activity).firstOrNull { Dual.userId(it) == target.userId }
                 ?: return showMessage(target.setupHint ?: "Set up Dual Messenger first")
-            Dual.enqueue(activity, packId, pack.name, target.packageName)
+            val pending = Dual.enqueue(activity, packId, pack.name, target.packageName)
             graph.events.record("dual", "queued $packId for user ${target.userId}; opening companion")
-            runCatching { Dual.launchCompanion(activity, profile) }
-                .onFailure { showMessage("Couldn't open the Dual Messenger copy: ${it.message}") }
+            runCatching { Dual.launchCompanion(activity, profile, pending.id) }
+                .onFailure {
+                    graph.events.record("dual", "companion launch failed: ${it.message}")
+                    showMessage("Open StickerDock in Dual Messenger to finish adding “${pack.name}”")
+                }
             return
         }
         pendingAdd = packId to targetId

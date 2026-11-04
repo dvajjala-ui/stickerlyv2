@@ -124,9 +124,9 @@ class SyncProvider : ContentProvider() {
                 when (val n = StickerNormalizer.normalize(bytes)) {
                     is Normalized.Fail -> library.recordRejected(session, key, n.reason, bytes.size)
                     is Normalized.Ok -> {
-                        val name = n.exif?.packName ?: group
-                        val result = library.addSticker(n.bytes, Origin.IMPORT, originRef = name, label = key.substringAfterLast('/'),
-                            emojis = n.exif?.emojis?.joinToString(",").orEmpty())
+                        val name = n.exif?.packName.orEmpty()
+                        val result = library.addSticker(n.bytes, Origin.IMPORT, originRef = name.ifBlank { group },
+                            label = key.substringAfterLast('/'), emojis = n.exif?.emojis?.joinToString(",").orEmpty())
                         library.recordImport(session, key, result, name, bytes.size)
                     }
                 }
@@ -138,14 +138,16 @@ class SyncProvider : ContentProvider() {
 
     /** begin_import → session id; finish_import(session) → packs built per original pack name. */
     override fun call(method: String, arg: String?, extras: Bundle?): Bundle? {
+        if (method == "whoami") return Bundle().apply {
+            putInt("user", Dual.myUserId()); putBoolean("companion", Dual.isCompanion(requireNotNull(context)))
+        }
         if (Dual.isCompanion(requireNotNull(context))) return null
         val library = graph.library
         return when (method) {
             "begin_import" -> Bundle().apply { putString("session", library.startImport(arg ?: "dual", "COMPANION")) }
             "finish_import" -> {
                 val session = requireNotNull(arg)
-                var packs = 0
-                library.importedGroups(session).forEach { (group, ids) -> packs += library.autoPack(ids, group.ifBlank { "Dual Messenger" }).size }
+                val packs = library.packImported(library.importedGroups(session), "From Dual Messenger").size
                 library.setImportState(session, "DONE")
                 val totals = library.importTotals(session)
                 graph.events.record("sync", "companion import done: ${totals.added} added, ${totals.duplicates} dup, ${totals.rejected} rejected, $packs packs")
