@@ -1,0 +1,8 @@
+# Supabase CLI config. Only settings StickerDock needs are listed; the CLI fills in defaults for the rest.
+# Run CLI commands from `backend/` (e.g. `supabase --workdir backend functions deploy intake`).
+project_id = "stickerdock-next"
+
+# Collectors authenticate with the x-intake-token header (constant-time checked against the
+# INTAKE_TOKEN secret), not with a Supabase JWT.
+[functions.intake]
+verify_jwt = false
