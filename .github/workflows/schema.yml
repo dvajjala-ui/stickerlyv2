@@ -3,6 +3,7 @@ name: Supabase schema
 # Applies every migration to PGlite (in-process Postgres set up like a fresh Supabase project) and checks what the
 # phones' anonymous key can see. No Supabase project or secrets needed.
 on:
+  workflow_dispatch:
   push:
     paths: ['backend/supabase/**', '.github/workflows/schema.yml']
   pull_request:

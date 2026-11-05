@@ -2,6 +2,7 @@ name: App
 
 # Shared-module tests (library, WebP, pager, auto tags), the SQLDelight migration check and a debug APK build.
 on:
+  workflow_dispatch:
   push:
     paths: ['app/**', '.github/workflows/app.yml']
   pull_request:
