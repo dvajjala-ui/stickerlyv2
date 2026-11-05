@@ -17,7 +17,9 @@ import {
   isMediaMime,
   isStorageConflict,
   parseIntakeBody,
+  parseQueueAction,
   probeMedia,
+  type QueueAction,
   readTextCapped,
   sha256Hex,
   sniffMedia,
@@ -68,6 +70,29 @@ async function existingId(sb: SupabaseClient, sha256: string): Promise<string | 
   return (data as { id: string } | null)?.id ?? null;
 }
 
+interface JobRow { id: string; topics: string[]; sources: string[]; image_limit: number; status: string; cancel_requested: boolean }
+
+/** collection_jobs through the service-role RPCs (see migration 20261105000004). */
+async function handleQueue(sb: SupabaseClient, q: QueueAction): Promise<Response> {
+  if (q.action === 'claim') {
+    const { data, error } = await sb.rpc('claim_collection_job', { p_worker: q.worker, p_sources: q.sources.length ? q.sources : null });
+    if (error) throw new Error(`claim: ${error.message}`);
+    const row = (data as JobRow[] | null)?.[0];
+    return json(200, {
+      job: row ? { id: row.id, topics: row.topics, sources: row.sources, image_limit: row.image_limit, cancel_requested: row.cancel_requested } : null,
+    });
+  }
+  const { data, error } = await sb.rpc('report_collection_job', {
+    p_worker: q.worker, p_job: q.job, p_status: q.status, p_saved: q.saved, p_delivered: q.delivered, p_error: q.error,
+    p_source_status: q.sourceStatus, p_events: q.events,
+  });
+  if (error) throw new Error(`report: ${error.message}`);
+  const row = (data as JobRow[] | null)?.[0];
+  // Requeued and claimed by another collector: 400 tells HandNavigate's bridge to stop its copy.
+  if (!row) return json(400, { error: 'not_your_job' });
+  return json(200, { job: { id: row.id, status: row.status, cancel_requested: row.cancel_requested } });
+}
+
 async function handle(req: Request): Promise<Response> {
   if (req.method === 'OPTIONS') return new Response(null, { status: 204, headers: CORS });
   if (req.method !== 'POST') return json(405, { error: 'method_not_allowed' });
@@ -88,6 +113,13 @@ async function handle(req: Request): Promise<Response> {
   } catch (e) {
     if (e instanceof BodyTooLargeError) return json(413, { error: 'too_large', detail: `max ${MAX_IMAGE_BYTES} bytes` });
     return json(400, { error: 'bad_json' });
+  }
+
+  // HandNavigate's queue bridge polls this endpoint too (claim a collection job, report progress).
+  const queue = parseQueueAction(body);
+  if (queue) {
+    if (!queue.ok) return json(queue.status, { error: queue.error, detail: queue.detail, field: queue.field });
+    return await handleQueue(db(), queue.value);
   }
 
   const parsed = parseIntakeBody(body);

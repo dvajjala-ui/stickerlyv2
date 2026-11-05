@@ -57,6 +57,10 @@ create table if not exists trends (
 create table if not exists ai_calls (id integer primary key autoincrement, at text not null, provider text not null,
   model text not null, key_slot integer, purpose text not null, ok integer not null, status integer,
   input_tokens integer, output_tokens integer, latency_ms integer, error text);
+create table if not exists collection_jobs (id text primary key, plan_date text not null, topics text not null,
+  sources text not null, image_limit integer not null, status text not null default 'QUEUED',
+  created_by text not null default 'worker', note text, cancel_requested integer not null default 0,
+  created_at text not null);
 create table if not exists worker_runs (id integer primary key autoincrement, started_at text not null,
   finished_at text, stage text not null, ok integer, summary text);
 """
@@ -72,6 +76,7 @@ JSON_COLUMNS: dict[str, frozenset[str]] = {
     "source_images": frozenset({"prescreen", "analysis", "mood", "tags", "emojis"}),
     "stickers": frozenset({"tags", "emojis", "credit", "quality_reasons", "quality_signals"}),
     "trends": frozenset({"keywords", "source_urls"}),
+    "collection_jobs": frozenset({"topics", "sources"}),
     "worker_runs": frozenset({"summary"}),
 }
 BOOL_COLUMNS: dict[str, frozenset[str]] = {
@@ -399,6 +404,22 @@ class LocalStore:
             cursor = self.db.execute(f"update trends set active = 0 where active = 1 and created_at < ? and "
                                      f"source in ({marks})", (iso(before), *sources))
         return cursor.rowcount
+
+    # ------------------------------------------------------------ collection queue
+    def planned_collection_images(self, plan_date: str) -> int:
+        row = self.db.execute("select coalesce(sum(image_limit), 0) from collection_jobs where plan_date = ? and "
+                              "status != 'CANCELLED' and cancel_requested = 0", (plan_date,)).fetchone()
+        return int(row[0])
+
+    def recent_collection_topics(self, since: datetime) -> list[str]:
+        rows = self._select("collection_jobs", "select topics from collection_jobs where created_at >= ?", (iso(since),))
+        return [topic for row in rows for topic in row["topics"]]
+
+    def insert_collection_jobs(self, rows: Sequence[Row]) -> int:
+        with self.db:
+            for row in rows:
+                self._insert("collection_jobs", {"id": str(uuid.uuid4()), "created_at": self._stamp(), **row})
+        return len(rows)
 
     # ------------------------------------------------------------ ledger
     def log_ai_call(self, row: Row) -> None:

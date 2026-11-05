@@ -127,3 +127,44 @@ test('pack counts and versions only count published stickers', async () => {
   const inPack = await asAnon(db, 'select id from public.discover_pack_stickers($1)', [pack.id])
   assert.equal(inPack.length, 2)
 })
+
+test('collectors claim queued jobs one at a time and report progress', async () => {
+  const db = await project()
+  const queue = async (topics, sources, limit) => (await db.query(
+    'insert into public.collection_jobs (topics, sources, image_limit) values ($1, $2, $3) returning id', [topics, sources, limit])).rows[0].id
+  const cats = await queue(['funny cat reaction'], ['pinterest', 'reddit'], 25)
+  const office = await queue(['office meme'], ['flickr'], 25)
+  const me = '11111111-1111-4111-8111-111111111111'
+  const other = '22222222-2222-4222-8222-222222222222'
+  const claim = async (worker, sources) => (await db.query('select * from public.claim_collection_job($1, $2)', [worker, sources])).rows
+
+  const first = await claim(me, ['pinterest'])
+  assert.equal(first.length, 1)
+  assert.equal(first[0].id, cats, 'oldest job whose sources the collector supports')
+  assert.equal(first[0].status, 'RUNNING')
+  assert.deepEqual(await claim(me, ['pinterest']), [], 'a running job is not handed out twice')
+
+  const progress = await db.query(`select * from public.report_collection_job($1, $2, 'VERIFIED_STORAGE', 25, 25)`, [me, cats])
+  assert.equal(progress.rows[0].saved, 25)
+  assert.equal(progress.rows[0].status, 'VERIFIED_STORAGE')
+  const stranger = await db.query(`select * from public.report_collection_job($1, $2, 'FAILED', 0, 0)`, [other, cats])
+  assert.equal(stranger.rows.length, 0, 'only the collector holding the job may report on it')
+  await assert.rejects(db.query(`select * from public.report_collection_job($1, $2, 'QUEUED', 0, 0)`, [me, cats]), /bad collection status/)
+
+  // A collector that went quiet for 15 minutes loses its job to the next one.
+  assert.equal((await claim(other, ['flickr']))[0].id, office)
+  await db.query(`update public.collection_jobs set reported_at = now() - interval '20 minutes' where id = $1`, [office])
+  const taken = await claim(me, ['flickr'])
+  assert.equal(taken[0].id, office)
+  assert.equal(taken[0].worker_id, me)
+  assert.equal((await db.query(`select * from public.report_collection_job($1, $2, 'RUNNING', 3, 3)`, [other, office])).rows.length, 0)
+
+  // Cancelled jobs are skipped; the phones' key can't touch the queue.
+  const cancelled = await queue(['skip me'], ['reddit'], 5)
+  await db.query('update public.collection_jobs set cancel_requested = true where id = $1', [cancelled])
+  assert.deepEqual(await claim(me, ['reddit']), [])
+  await assert.rejects(asAnon(db, 'select * from public.claim_collection_job($1, $2)', [me, ['reddit']]), /permission denied/)
+  assert.deepEqual(await asAnon(db, 'select id from public.collection_jobs'), [])
+  const settings = await db.query(`select value from public.settings where key = 'collect'`)
+  assert.equal(settings.rows[0].value.enabled, false)
+})

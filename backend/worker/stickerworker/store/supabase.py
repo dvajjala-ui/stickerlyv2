@@ -276,6 +276,20 @@ class SupabaseStore:
                                         "at": f"gte.{stamp}"})
         return {"vision": vision, "text": text}
 
+    def planned_collection_images(self, plan_date: str) -> int:
+        rows = self._select_all("collection_jobs", {"select": "image_limit", "plan_date": f"eq.{plan_date}",
+                                                    "status": "neq.CANCELLED", "cancel_requested": "is.false"})
+        return sum(int(r.get("image_limit") or 0) for r in rows)
+
+    def recent_collection_topics(self, since: datetime) -> list[str]:
+        rows = self._select_all("collection_jobs", {"select": "topics", "created_at": f"gte.{iso(since)}"}, cap=2000)
+        return [topic for r in rows for topic in (r.get("topics") or [])]
+
+    def insert_collection_jobs(self, rows: Sequence[Row]) -> int:
+        if rows:
+            self._insert("collection_jobs", rows, returning=False)
+        return len(rows)
+
     def start_run(self, stage: str) -> int | None:
         rows = self._insert("worker_runs", [{"stage": stage}])
         return rows[0]["id"] if rows else None

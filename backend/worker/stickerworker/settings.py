@@ -14,6 +14,9 @@ DEFAULT_ROWS: dict[str, Any] = {
                                "dark", "relationship", "office", "festivals", "animals", "baby",
                                "trending", "adult"]},
     "quality_gate": {"enabled": True, "min_score": 60, "vision_judge": False, "judge_band": 20},
+    # Off until HandNavigate is pointed at this project (migration 20261105000004 seeds the same row).
+    "collect": {"enabled": False, "daily_images": 100, "job_size": 25, "topics_per_job": 3,
+                "sources": ["pinterest", "reddit", "imgflip", "flickr"], "owner_topics": []},
 }
 
 # Mirrors the migration seed; the database table is authoritative in production.
@@ -62,11 +65,24 @@ class QualityGate:
 
 
 @dataclass(frozen=True)
+class Collect:
+    """Daily HandNavigate plan: up to `daily_images` per IST day, in jobs of `job_size` images and
+    `topics_per_job` topics, searched on `sources`. `owner_topics` come first, then fresh trends."""
+    enabled: bool = False
+    daily_images: int = 100
+    job_size: int = 25
+    topics_per_job: int = 3
+    sources: tuple[str, ...] = ("pinterest", "reddit", "imgflip", "flickr")
+    owner_topics: tuple[str, ...] = ()
+
+
+@dataclass(frozen=True)
 class Settings:
     publish: PublishPolicy
     budgets: Budgets
     categories: tuple[str, ...]
     quality: QualityGate = QualityGate()
+    collect: Collect = Collect()
 
 
 def _int(value: Any, default: int, low: int = 0, high: int = 1_000_000) -> int:
@@ -89,6 +105,8 @@ def parse_settings(rows: Mapping[str, Any]) -> Settings:
     categories = raw_categories.get("enabled") if isinstance(raw_categories, Mapping) else None
     raw_gate = rows.get("quality_gate")
     gate = raw_gate if isinstance(raw_gate, Mapping) else {}
+    raw_collect = rows.get("collect")
+    collect = raw_collect if isinstance(raw_collect, Mapping) else {}
     defaults = DEFAULT_ROWS
     sites = policy.get("require_review_sites")
     celebrities = policy.get("celebrities")
@@ -117,4 +135,26 @@ def parse_settings(rows: Mapping[str, Any]) -> Settings:
             vision_judge=_bool(gate.get("vision_judge"), False),
             judge_band=_int(gate.get("judge_band"), defaults["quality_gate"]["judge_band"], 0, 100),
         ),
+        collect=Collect(
+            enabled=_bool(collect.get("enabled"), False),
+            daily_images=_int(collect.get("daily_images"), defaults["collect"]["daily_images"], 0, 500),
+            job_size=_int(collect.get("job_size"), defaults["collect"]["job_size"], 1, 100),
+            topics_per_job=_int(collect.get("topics_per_job"), defaults["collect"]["topics_per_job"], 1, 10),
+            sources=_slugs(collect.get("sources"), tuple(defaults["collect"]["sources"]), 8),
+            owner_topics=_topics(collect.get("owner_topics")),
+        ),
     )
+
+
+def _slugs(value: Any, default: tuple[str, ...], limit: int) -> tuple[str, ...]:
+    if not isinstance(value, list):
+        return default
+    found = tuple(dict.fromkeys(s for s in (str(v).strip().lower() for v in value) if s and s.replace("-", "").isalnum()))
+    return found[:limit] or default
+
+
+def _topics(value: Any) -> tuple[str, ...]:
+    if not isinstance(value, list):
+        return ()
+    cleaned = (" ".join(str(v).split())[:80] for v in value)
+    return tuple(dict.fromkeys(t for t in cleaned if len(t) >= 3))[:40]

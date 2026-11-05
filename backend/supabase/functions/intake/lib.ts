@@ -506,3 +506,60 @@ export function sourceRow(args: {
   if (probe.frames !== null) row.frames = probe.frames;
   return row;
 }
+
+// ---------------------------------------------------------------- collection queue (HandNavigate)
+
+/** What HandNavigate's cloud bridge may report (its own job states; QUEUED is the server's). */
+export const COLLECTION_REPORT_STATUSES = ['RUNNING', 'WAITING_FOR_LOGIN', 'VERIFIED_STORAGE', 'PARTIAL', 'AUTH_REQUIRED',
+  'DELIVERY_FAILED', 'FAILED', 'CANCELLED', 'INTERRUPTED'] as const;
+
+export type QueueAction =
+  | { action: 'claim'; worker: string; sources: string[] }
+  | {
+    action: 'report'; worker: string; job: string; status: string; saved: number; delivered: number;
+    error: string | null; sourceStatus: Record<string, unknown>; events: unknown[];
+  };
+
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const MAX_REPORT_JSON = 20_000;
+
+/**
+ * Queue calls from HandNavigate's cloud bridge, sent to this same endpoint with the same token:
+ *   {action:'claim', worker_id, supported_sources:[{id}|id]} and {action:'report', worker_id, id, report:{status, saved,
+ *   delivered, error, source_status, events}}.
+ * Returns null when the body isn't a queue call (an image upload).
+ */
+export function parseQueueAction(body: unknown): Parsed<QueueAction> | null {
+  if (!body || typeof body !== 'object' || Array.isArray(body)) return null;
+  const o = body as Record<string, unknown>;
+  if (o.action === undefined) return null;
+  if (o.action !== 'claim' && o.action !== 'report') return bad('unknown action', 'action');
+  const worker = typeof o.worker_id === 'string' && UUID.test(o.worker_id) ? o.worker_id.toLowerCase() : null;
+  if (!worker) return bad('worker_id must be a UUID', 'worker_id');
+  if (o.action === 'claim') {
+    const raw = Array.isArray(o.supported_sources) ? o.supported_sources : [];
+    const sources = raw
+      .map((s) => (typeof s === 'string' ? s : s && typeof s === 'object' ? (s as Record<string, unknown>).id : null))
+      .filter((s): s is string => typeof s === 'string' && SLUG.test(s))
+      .slice(0, 16);
+    return { ok: true, value: { action: 'claim', worker, sources } };
+  }
+  const job = typeof o.id === 'string' && UUID.test(o.id) ? o.id.toLowerCase() : null;
+  if (!job) return bad('id must be a UUID', 'id');
+  const r = o.report && typeof o.report === 'object' && !Array.isArray(o.report) ? (o.report as Record<string, unknown>) : null;
+  if (!r) return bad('report is required', 'report');
+  const status = typeof r.status === 'string' ? r.status : '';
+  if (!(COLLECTION_REPORT_STATUSES as readonly string[]).includes(status)) return bad('unknown report status', 'report.status');
+  const count = (v: unknown) => (Number.isInteger(v) && (v as number) >= 0 ? Math.min(v as number, 10_000) : 0);
+  let sourceStatus = r.source_status && typeof r.source_status === 'object' && !Array.isArray(r.source_status)
+    ? (r.source_status as Record<string, unknown>) : {};
+  let events = Array.isArray(r.events) ? r.events.slice(-20) : [];
+  // Diagnostics only: keep rows small even if a collector sends a lot.
+  if (JSON.stringify(sourceStatus).length > MAX_REPORT_JSON) sourceStatus = { truncated: true };
+  if (JSON.stringify(events).length > MAX_REPORT_JSON) events = [];
+  const error = typeof r.error === 'string' && r.error.trim() ? r.error.trim().slice(0, 500) : null;
+  return {
+    ok: true,
+    value: { action: 'report', worker, job, status, saved: count(r.saved), delivered: count(r.delivered), error, sourceStatus, events },
+  };
+}
