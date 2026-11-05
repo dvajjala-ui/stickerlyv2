@@ -16,6 +16,7 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -42,7 +43,9 @@ import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -58,6 +61,7 @@ import app.stickerdock.library.StickerItem
 import kotlinx.coroutines.CoroutineScope
 
 private enum class LibraryMode { STICKERS, PACKS }
+private const val PAGE = 300
 private enum class KindFilter(val label: String) { ALL("All"), STATIC("Static"), ANIMATED("Animated"), FAVORITES("★ Favorites") }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -77,14 +81,23 @@ fun LibraryScreen(app: AppModel, modifier: Modifier, onOpenPack: (String) -> Uni
     val whatsApp by host.whatsApp.collectAsState()
     var dismissedImport by remember { mutableStateOf<String?>(null) }
 
+    // Infinite scroll: the query limit grows by a page when the grid nears its end.
+    var pages by remember(query, kindFilter, app.adultEnabled, app.vaultOpen) { mutableStateOf(1) }
     val filter = StickerFilter(
         query = query,
         kind = when (kindFilter) { KindFilter.STATIC -> StickerKind.STATIC; KindFilter.ANIMATED -> StickerKind.ANIMATED; else -> null },
         favoritesOnly = kindFilter == KindFilter.FAVORITES,
         includeAdult = app.adultEnabled,
         vault = app.vaultOpen,
+        limit = PAGE * pages,
     )
     val stickers by remember(filter) { library.stickersFlow(filter) }.collectAsState(emptyList())
+    val gridState = rememberLazyGridState()
+    LaunchedEffect(gridState, stickers.size, pages) {
+        snapshotFlow { gridState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: 0 }.collect { last ->
+            if (stickers.size >= PAGE * pages && last >= stickers.size - 40) pages++
+        }
+    }
     val packs by remember(app.adultEnabled, app.vaultOpen) { library.packsFlow(app.adultEnabled, app.vaultOpen) }.collectAsState(emptyList())
     val visiblePacks = if (query.isBlank()) packs else packs.filter { it.name.contains(query, ignoreCase = true) }
 
@@ -153,7 +166,7 @@ fun LibraryScreen(app: AppModel, modifier: Modifier, onOpenPack: (String) -> Uni
                         "Import ZIP or .wastickers" to host::importArchives,
                     )
                 mode == LibraryMode.STICKERS -> LazyVerticalGrid(
-                    GridCells.Adaptive(76.dp), contentPadding = PaddingValues(12.dp),
+                    GridCells.Adaptive(76.dp), state = gridState, contentPadding = PaddingValues(12.dp),
                     horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
                     items(stickers, key = { it.id }) { item ->

@@ -19,9 +19,25 @@ All checks below ran over adb with debug-only command hooks; no WhatsApp UI was 
 - **Provider correctness (P1/D5 data path)** ✅ 4 shelf packs (2 static, 2 animated, 30 each) pass the official
   sample's validation rules read through our provider in user 0 **and** through the companion's proxy provider in
   user 95 (what the clone WhatsApp will read).
+- **Near-duplicates**: dHash on import (blank first frames skipped; animated also needs same frame count and ±10%
+  duration) → 710 → 672 unique from both accounts. DB v1→v2 migration on the phone kept all 710 rows first.
+- **Animated repair**: budgeted Fresco re-encoder → main-account import 666 files in 55 s: 549 added, 71 dup,
+  46 skipped (was 81). Remaining skips: 26 WhatsApp `.was` Lottie stickers (converter added since, pending
+  re-run), 17 with sub-8 ms frames the decoder rejected, 3 oversize.
+- **Discover end to end (X1 partial)** ✅ worker offline run (FakeAI, 15 sample images: explicit, protected
+  person, blank, tiny and duplicate correctly rejected; baby kept general) → `tools/feed_from_local.py` →
+  `tools/dev_discover.py` → phone over `adb reverse` → Discover tab shows packs ("Office Ke Dukh") and stickers.
+- UI reviewed on device (Library, Packs, Pack, WhatsApp hub, Discover); fixes applied: segmented switch,
+  4-column grid, cover badge, expanded pack sheet with visible Save button, dialog sizing, infinite scroll.
 - Pending owner-present checks: WhatsApp add dialogs (P1/D4), keyboard in WhatsApp (K2–K4), relay chooser.
 
-## 2026-11-05 — tests
+- **Samsung Freecess** froze the companion (user 95) ~50 s into a background import; the debug broadcast then hit
+  the background ANR timeout and Android killed it. Real imports run from foreground screens / foreground jobs;
+  debug hooks now release the broadcast immediately and run with the showcase screen in front.
+
+## 2026-11-05 — tests (re-run by the lead, not only by the agents)
+- Admin: `npm test` 76/76 pass; `npm run build` ok.
+- Worker: `pytest` 158/158 pass (108 s). Ruff not installed in that venv (agent reported clean).
 - `:shared:jvmTest` — 21/21 pass (12 core incl. AnimatedWebpFixer canvas/keyframe-drop/timing; 9 library incl.
   import grouping). Earlier: 17/17 pass (CoreTest 9: SHA-256 vs JDK on 8 sizes, WebP simple/lossless/extended/animated
   parsing, size/kind/timing rules, truncation, WhatsApp EXIF pack metadata, animated mux, tags/emoji;

@@ -26,7 +26,11 @@ import java.io.File
  */
 class DebugCommandReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
-        val pending = goAsync()
+        // Release the broadcast at once: long commands would otherwise hit the background-broadcast ANR
+        // timeout (seen on One UI 8.5 together with Samsung's Freecess freezer). Keep the app's showcase
+        // screen in the foreground while long commands run so the process isn't frozen.
+        goAsync().finish()
+        val pending = object { fun finish() {} }
         Thread {
             val graph = AppGraph.get(context)
             val log = graph.events
