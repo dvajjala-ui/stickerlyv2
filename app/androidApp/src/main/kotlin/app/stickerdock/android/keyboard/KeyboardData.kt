@@ -28,6 +28,7 @@ interface KeyboardData {
         const val FOR_YOU = "for_you"
         const val FAVORITES = "favorites"
         const val RECENT = "recent"
+        const val SEARCH = "search:"
 
         fun create(context: Context): KeyboardData =
             if (Dual.isCompanion(context)) CompanionKeyboardData(context) else LocalKeyboardData(context)
@@ -52,6 +53,7 @@ class LocalKeyboardData(private val context: Context) : KeyboardData {
     override fun stickers(tab: KeyboardTab, typedContext: String): List<KeyboardSticker> {
         val lib = graph.library
         val items = when {
+            tab.key.startsWith(KeyboardData.SEARCH) -> lib.stickers(StickerFilter(query = tab.key.removePrefix(KeyboardData.SEARCH), includeAdult = adult, limit = 120))
             tab.key == KeyboardData.FAVORITES -> lib.stickers(StickerFilter(favoritesOnly = true, includeAdult = adult, limit = 300))
             tab.key == KeyboardData.RECENT -> lib.recent(60, adult)
             tab.key.startsWith("pack:") -> lib.packStickers(tab.key.removePrefix("pack:"))
@@ -81,7 +83,11 @@ class CompanionKeyboardData(private val context: Context) : KeyboardData {
     override fun tabs() = listOf(KeyboardTab(KeyboardData.FOR_YOU, "For you"), KeyboardTab(KeyboardData.FAVORITES, "★"))
 
     override fun stickers(tab: KeyboardTab, typedContext: String): List<KeyboardSticker> {
-        val q = if (tab.key == KeyboardData.FOR_YOU) KeyboardData.contextQuery(typedContext) else ""
+        val q = when {
+            tab.key.startsWith(KeyboardData.SEARCH) -> tab.key.removePrefix(KeyboardData.SEARCH)
+            tab.key == KeyboardData.FOR_YOU -> KeyboardData.contextQuery(typedContext)
+            else -> ""
+        }
         val uri = Uri.parse("$base/library").buildUpon().appendQueryParameter("q", q).appendQueryParameter("limit", "200")
             .appendQueryParameter("adult", if (KeyboardData.adultEnabled(context)) "1" else "0").build()
         return runCatching {

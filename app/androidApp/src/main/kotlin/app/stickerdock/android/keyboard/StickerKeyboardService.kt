@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyRow
@@ -139,16 +140,70 @@ class StickerKeyboardService : InputMethodService(), LifecycleOwner, ViewModelSt
         if (ok) data.markUsed(sticker)
     }
 
+    /** Compact letter pad for searching inside the sticker keyboard (no system keyboard needed). */
+    @Composable
+    private fun LetterPad(onKey: (String) -> Unit, onBackspace: () -> Unit, onSpace: () -> Unit) {
+        val rows = listOf("qwertyuiop", "asdfghjkl", "zxcvbnm")
+        Column(Modifier.fillMaxWidth().padding(horizontal = 3.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            rows.forEachIndexed { index, row ->
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp, Alignment.CenterHorizontally)) {
+                    row.forEach { c -> Key(c.toString(), Modifier.weight(1f)) { onKey(c.toString()) } }
+                    if (index == 2) Key("⌫", Modifier.weight(1.5f), onBackspace)
+                }
+            }
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                Key("space", Modifier.weight(1f), onSpace)
+            }
+        }
+    }
+
+    @Composable
+    private fun Key(label: String, modifier: Modifier, onTap: () -> Unit) {
+        Box(modifier.height(34.dp).clip(RoundedCornerShape(8.dp)).background(Color(0xFF2A2B26)).clickable(onClick = onTap),
+            contentAlignment = Alignment.Center) {
+            Text(label, color = Color(0xFFF7F6F1), fontSize = 15.sp)
+        }
+    }
+
     @OptIn(ExperimentalFoundationApi::class)
     @Composable
     private fun KeyboardContent() {
         var tabs by remember { mutableStateOf(emptyList<KeyboardTab>()) }
         var selected by remember { mutableStateOf(KeyboardTab(KeyboardData.FOR_YOU, "For you")) }
         var stickers by remember { mutableStateOf(emptyList<KeyboardSticker>()) }
+        var searching by remember { mutableStateOf(false) }
+        var query by remember { mutableStateOf("") }
         LaunchedEffect(revision) { tabs = withContext(Dispatchers.IO) { data.tabs() } }
-        LaunchedEffect(selected, revision) { stickers = withContext(Dispatchers.IO) { data.stickers(selected, typed) } }
-        Column(Modifier.fillMaxWidth().height(310.dp).background(Color(0xFF12130F))) {
+        LaunchedEffect(selected, revision, searching, query) {
+            val tab = if (searching && query.isNotBlank()) KeyboardTab(KeyboardData.SEARCH + query, query) else selected
+            stickers = withContext(Dispatchers.IO) { data.stickers(tab, typed) }
+        }
+        // Edge-to-edge IME window (Android 15+): keep the background behind the navigation bar, keys above it.
+        Column(Modifier.fillMaxWidth().background(Color(0xFF12130F)).navigationBarsPadding().height(310.dp)) {
+            if (searching) {
+                Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Text(if (query.isEmpty()) "Search stickers…" else query, Modifier.weight(1f).clip(RoundedCornerShape(50))
+                        .background(Color(0xFF2A2B26)).padding(horizontal = 14.dp, vertical = 7.dp),
+                        color = if (query.isEmpty()) Color(0xFF8E8D86) else Color(0xFFF7F6F1), fontSize = 14.sp, maxLines = 1)
+                    Text("✕", Modifier.padding(start = 6.dp).clip(RoundedCornerShape(50)).background(Color(0xFF2A2B26))
+                        .clickable { searching = false; query = "" }.padding(horizontal = 12.dp, vertical = 7.dp),
+                        color = Color(0xFFF7F6F1), fontSize = 13.sp)
+                }
+                LazyRow(Modifier.fillMaxWidth().height(84.dp).padding(horizontal = 4.dp)) {
+                    items(stickers, key = { it.id }) { sticker ->
+                        AsyncImage(model = sticker.model, contentDescription = sticker.label,
+                            modifier = Modifier.padding(4.dp).size(76.dp).clip(RoundedCornerShape(12.dp)).clickable { send(sticker) })
+                    }
+                }
+                LetterPad(onKey = { query = (query + it).take(30) }, onBackspace = { query = query.dropLast(1) },
+                    onSpace = { if (query.isNotEmpty() && !query.endsWith(' ')) query += " " })
+                return@Column
+            }
             Row(Modifier.fillMaxWidth().padding(horizontal = 6.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+                Box(Modifier.padding(end = 6.dp).clip(RoundedCornerShape(50)).background(Color(0xFF2A2B26))
+                    .clickable { searching = true }.padding(horizontal = 12.dp, vertical = 7.dp)) {
+                    Text("🔍", fontSize = 13.sp)
+                }
                 LazyRow(Modifier.weight(1f), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     items(tabs, key = { it.key }) { tab ->
                         val active = tab.key == selected.key

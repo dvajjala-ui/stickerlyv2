@@ -48,6 +48,9 @@ All checks below ran over adb with debug-only command hooks; no WhatsApp UI was 
   per-profile IMEs); the sticker arrived as `content://0@app.stickerdock.dev.files/stickers/…`
   (`image/webp.wasticker`, 26 KB) and decoded. So the keyboard reaches the Dual Messenger WhatsApp with no
   companion or adb setup. Both profiles' default keyboard restored to Samsung Keyboard.
+- **Keyboard search** ✅ 🔍 tab → own letter pad (works where the host field has no text); typing "chalo" showed
+  "Chalo chalo", tapping it committed `image/webp.wasticker` (161 KB, decoded). Android 16 draws the IME edge to
+  edge, so the keys now sit above the navigation bar (`navigationBarsPadding`), checked on screen.
 - **Samsung Freecess** froze the companion (user 95) ~50 s into a background import; the debug broadcast then hit
   the background ANR timeout and Android killed it. Real imports run from foreground screens / foreground jobs;
   debug hooks now release the broadcast immediately and run with the showcase screen in front.
