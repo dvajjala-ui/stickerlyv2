@@ -128,6 +128,9 @@ class ArchiveImport(private val library: Library, private val check: StickerChec
         val groups = linkedMapOf<String, MutableList<String>>()
         var duplicates = 0
         for (entry in images) {
+            val fileName = entry.name.substringAfterLast('/')
+            // .wastickers trays travel next to the stickers: 96 × 96 icons, or any PNG named tray*.
+            if (fileName.startsWith("tray", ignoreCase = true) && extensionOf(fileName) == "png") continue
             val bytes = bytes(zip, entry) ?: continue
             if (StickerCheck.isTrayIcon(bytes)) continue
             when (val n = check.check(bytes)) {
@@ -135,7 +138,7 @@ class ArchiveImport(private val library: Library, private val check: StickerChec
                 is Checked.Ok -> {
                     val folder = entry.name.substringBeforeLast('/', "").substringAfterLast('/')
                     val group = n.exif?.packName ?: folder.ifBlank { title }
-                    when (val r = library.addSticker(n.bytes, Origin.IMPORT, originRef = group, label = entry.name.substringAfterLast('/'),
+                    when (val r = library.addSticker(n.bytes, Origin.IMPORT, originRef = group, label = fileName,
                         emojis = n.exif?.emojis?.joinToString(",").orEmpty(), dhash = n.dhash)) {
                         is AddResult.Added -> groups.getOrPut(group) { mutableListOf() } += r.id
                         is AddResult.Duplicate -> duplicates++

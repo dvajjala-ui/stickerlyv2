@@ -86,6 +86,7 @@ internal class IosHost(private val graph: IosGraph, private val presenter: Prese
     private var backgroundTask = UIBackgroundTaskInvalid
 
     @Volatile private var stopRequested = false
+    @Volatile private var currentLabel = "Importing"
 
     private class ImportJob(val label: String, val work: () -> ImportSummary)
 
@@ -278,6 +279,7 @@ internal class IosHost(private val graph: IosGraph, private val presenter: Prese
     }
 
     private suspend fun execute(job: ImportJob) {
+        currentLabel = job.label
         _import.value = ImportProgress(job.label, 0, 0, 0, 0, running = true)
         val result = withContext(Dispatchers.Default) { runCatching { job.work() } }
         result.fold(
@@ -294,7 +296,7 @@ internal class IosHost(private val graph: IosGraph, private val presenter: Prese
     }
 
     private fun progress(t: ImportTick) {
-        _import.value = ImportProgress("Importing", t.scanned, t.added, t.duplicates, t.rejected, running = true, message = t.current)
+        _import.value = ImportProgress(currentLabel, t.scanned, t.added, t.duplicates, t.rejected, running = true, message = t.current)
     }
 
     /** Keeps an import alive for a while when the user leaves the app; on expiry the import pauses cleanly. */

@@ -14,7 +14,8 @@ data class DocFile(val docId: String, val name: String, val folder: String, val 
  * calls cost several IPC round-trips per file, which v1 hit on large WhatsApp folders).
  */
 object DocumentTree {
-    private val IMAGE_EXTENSIONS = setOf("webp", "png", "jpg", "jpeg", "heic", "heif", "gif")
+    // "was" = WhatsApp's own animated stickers (Lottie in a ZIP), converted on import.
+    private val IMAGE_EXTENSIONS = setOf("webp", "png", "jpg", "jpeg", "heic", "heif", "gif", "was")
 
     fun rootName(tree: Uri): String =
         DocumentsContract.getTreeDocumentId(tree).substringAfterLast('/').substringAfterLast(':').ifBlank { "Phone stickers" }

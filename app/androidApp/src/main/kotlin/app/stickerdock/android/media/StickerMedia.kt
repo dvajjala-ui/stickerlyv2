@@ -51,6 +51,11 @@ object StickerNormalizer {
                 else Normalized.Fail("Animated sticker can't be used as-is: $problem")
             }
         }
+        if (AnimatedReencoder.isZip(input)) {
+            // WhatsApp's own `.was` animated stickers (Lottie inside a ZIP) → rendered to animated WebP.
+            return AnimatedReencoder.fromWhatsAppLottie(input)?.let { Normalized.Ok(it, StickerKind.ANIMATED, null, reencoded = true) }
+                ?: Normalized.Fail("WhatsApp animated sticker (.was) couldn't be converted")
+        }
         if (isGif(input)) {
             AnimatedReencoder.reencode(input)?.let { return Normalized.Ok(it, StickerKind.ANIMATED, null, reencoded = true) }
             // Single-frame GIFs fall through to the static path below.

@@ -61,6 +61,7 @@ fresco-animated-gif = { module = "com.facebook.fresco:animated-gif", version.ref
 # animated-webp/gif expose these only at runtime; the re-encoder compiles against them directly.
 fresco-animated-base = { module = "com.facebook.fresco:animated-base", version.ref = "fresco" }
 soloader-nativeloader = { module = "com.facebook.soloader:nativeloader", version = "0.11.0" }
+lottie = { module = "com.airbnb.android:lottie", version = "6.7.1" }
 
 [plugins]
 androidApplication = { id = "com.android.application", version.ref = "agp" }

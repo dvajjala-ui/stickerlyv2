@@ -198,6 +198,7 @@ class ArchiveImporter(private val context: Context) {
         val library = graph.library
         val byName = items.associateBy { it.path.substringAfterLast('/') }
         val packName = manifest.optString("name", "Imported").take(60)
+        val packRating = runCatching { Rating.valueOf(manifest.optString("rating", "GENERAL")) }.getOrDefault(Rating.GENERAL)
         val ids = mutableListOf<String>()
         var dup = 0; var rejected = 0
         val stickers = manifest.optJSONArray("stickers") ?: org.json.JSONArray()
@@ -205,8 +206,11 @@ class ArchiveImporter(private val context: Context) {
             val s = stickers.getJSONObject(i)
             val n = byName[s.optString("file")]?.bytes?.let(StickerNormalizer::normalize)
             if (n !is Normalized.Ok) { rejected++; continue }
+            // An 18+ pack stays 18+ even if an older sender didn't write per-sticker ratings.
+            val rating = runCatching { Rating.valueOf(s.optString("rating", packRating.name)) }.getOrDefault(packRating)
+                .let { if (packRating == Rating.ADULT) Rating.ADULT else it }
             when (val r = library.addNormalized(n, Origin.SHARE, originRef = packName, label = s.optString("label"),
-                tags = s.optString("tags"), emojis = s.optString("emojis"))) {
+                tags = s.optString("tags"), emojis = s.optString("emojis"), rating = rating)) {
                 is AddResult.Added -> ids += r.id
                 is AddResult.Duplicate -> { ids += r.id; dup++ }
                 is AddResult.Rejected -> rejected++

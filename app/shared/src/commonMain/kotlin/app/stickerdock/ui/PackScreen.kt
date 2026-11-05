@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
@@ -177,7 +178,7 @@ private fun StickerPicker(app: AppModel, packId: String, kind: StickerKind, vaul
         text = {
             Column {
                 OutlinedTextField(query, { query = it }, Modifier.fillMaxWidth(), singleLine = true, placeholder = { Text("Search") })
-                LazyVerticalGrid(GridCells.Adaptive(72.dp), Modifier.fillMaxWidth().padding(top = 8.dp).then(Modifier.fillMaxSize(0.9f)),
+                LazyVerticalGrid(GridCells.Adaptive(72.dp), Modifier.fillMaxWidth().padding(top = 8.dp).heightIn(max = 420.dp),
                     horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     items(items.filterNot { library.isInPack(packId, it.id) }, key = { it.id }) { item ->
                         StickerTile(app.model(item), item.title, selected = item.id in chosen,

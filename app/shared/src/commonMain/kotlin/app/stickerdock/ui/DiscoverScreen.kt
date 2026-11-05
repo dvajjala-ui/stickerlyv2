@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyRow
@@ -29,6 +30,7 @@ import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -167,14 +169,10 @@ private fun PackPreviewSheet(app: AppModel, pack: RemotePack, onDismiss: () -> U
     var items by remember { mutableStateOf(emptyList<RemoteSticker>()) }
     var saving by remember { mutableStateOf(false) }
     LaunchedEffect(pack.id) { items = runCatching { client.packStickers(pack.id) }.getOrDefault(emptyList()) }
-    ModalBottomSheet(onDismissRequest = onDismiss) {
+    ModalBottomSheet(onDismissRequest = onDismiss, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)) {
         Column(Modifier.padding(horizontal = 20.dp).padding(bottom = 24.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Text(pack.title, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
             pack.description?.let { Text(it, style = MaterialTheme.typography.bodyMedium) }
-            LazyVerticalGrid(GridCells.Adaptive(76.dp), Modifier.fillMaxWidth().size(width = 600.dp, height = 300.dp),
-                horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                items(items, key = { it.id }) { s -> StickerTile(client.imageUrl(s.filePath), s.caption ?: "", animated = s.animated, onClick = {}) }
-            }
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                 Button(enabled = !saving, onClick = {
                     saving = true
@@ -187,6 +185,10 @@ private fun PackPreviewSheet(app: AppModel, pack: RemotePack, onDismiss: () -> U
                 ReportButton(app, "pack", pack.id, scope, onDismiss)
             }
             Text("Saved packs follow updates: new stickers arrive in WhatsApp automatically.", style = MaterialTheme.typography.bodySmall)
+            LazyVerticalGrid(GridCells.Adaptive(76.dp), Modifier.fillMaxWidth().heightIn(max = 420.dp),
+                horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                items(items, key = { it.id }) { s -> StickerTile(client.imageUrl(s.filePath), s.caption ?: "", animated = s.animated, onClick = {}) }
+            }
         }
     }
 }

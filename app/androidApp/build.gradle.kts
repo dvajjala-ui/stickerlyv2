@@ -83,6 +83,7 @@ dependencies {
     implementation(libs.fresco.animated.gif)
     implementation(libs.fresco.animated.base)
     implementation(libs.soloader.nativeloader)
+    implementation(libs.lottie)
     debugImplementation(libs.compose.uiTooling)
     testImplementation(libs.junit)
 }

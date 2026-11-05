@@ -36,7 +36,8 @@ object Exporters {
             stickers.forEachIndexed { index, s ->
                 val name = "%02d_%s.webp".format(index + 1, s.sha256.take(12))
                 graph.files.read(s.id)?.let { zip.put(name, it) }
-                items.put(JSONObject().put("file", name).put("label", s.label).put("tags", s.tags).put("emojis", s.emojis))
+                items.put(JSONObject().put("file", name).put("label", s.label).put("tags", s.tags).put("emojis", s.emojis)
+                    .put("rating", s.rating.name))
             }
             zip.put("manifest.json", JSONObject().put("schema", PACK_SCHEMA).put("name", pack.name)
                 .put("kind", pack.kind.name).put("rating", pack.rating.name).put("stickers", items).toString(2).toByteArray())
@@ -56,20 +57,23 @@ object Exporters {
                 val seen = mutableSetOf<String>()
                 val packs = JSONArray()
                 val vaults = if (includeVault) listOf(false, true) else listOf(false)
+                fun addSticker(s: app.stickerdock.library.StickerItem) {
+                    if (seen.add(s.sha256)) {
+                        graph.files.read(s.id)?.let { zip.put("stickers/${s.sha256}.webp", it); count++ }
+                        stickers.put(JSONObject().put("sha256", s.sha256).put("label", s.label).put("tags", s.tags)
+                            .put("emojis", s.emojis).put("rating", s.rating.name).put("vault", s.vault)
+                            .put("favorite", s.favorite).put("origin", s.origin))
+                    }
+                }
                 for (vault in vaults) {
+                    // Every sticker, including ones not in any pack.
+                    lib.stickers(app.stickerdock.library.StickerFilter(includeAdult = true, vault = vault, limit = 1_000_000)).forEach(::addSticker)
                     lib.packs(includeAdult = true, vault = vault).forEach { pack ->
                         val members = lib.packStickers(pack.id)
                         packs.put(JSONObject().put("id", pack.id).put("name", pack.name).put("kind", pack.kind.name)
                             .put("rating", pack.rating.name).put("vault", pack.vault).put("on_shelf", pack.onShelf)
                             .put("tray", pack.trayStickerId).put("stickers", JSONArray(members.map { it.sha256 })))
-                        members.forEach { s ->
-                            if (seen.add(s.sha256)) {
-                                graph.files.read(s.id)?.let { zip.put("stickers/${s.sha256}.webp", it); count++ }
-                                stickers.put(JSONObject().put("sha256", s.sha256).put("label", s.label).put("tags", s.tags)
-                                    .put("emojis", s.emojis).put("rating", s.rating.name).put("vault", s.vault)
-                                    .put("favorite", s.favorite).put("origin", s.origin))
-                            }
-                        }
+                        members.forEach(::addSticker)
                     }
                 }
                 zip.put("manifest.json", JSONObject().put("schema", LIBRARY_SCHEMA).put("created_at", System.currentTimeMillis())

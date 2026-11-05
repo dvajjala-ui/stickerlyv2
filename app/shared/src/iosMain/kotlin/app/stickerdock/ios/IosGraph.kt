@@ -1,4 +1,4 @@
-@file:OptIn(ExperimentalForeignApi::class)
+@file:OptIn(ExperimentalForeignApi::class, BetaInteropApi::class)
 
 package app.stickerdock.ios
 
@@ -9,6 +9,7 @@ import app.stickerdock.host.Prefs
 import app.stickerdock.library.Library
 import app.stickerdock.library.StickerFiles
 import co.touchlab.sqliter.DatabaseConfiguration
+import kotlinx.cinterop.BetaInteropApi
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.cinterop.ObjCObjectVar
 import kotlinx.cinterop.alloc

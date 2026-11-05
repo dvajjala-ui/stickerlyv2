@@ -39,3 +39,5 @@ backend/supabase/.temp/
 # Local evidence / scratch (large or personal)
 work/
 device-facts*.txt
+backend/worker/demo-in/
+backend/worker/*.egg-info/

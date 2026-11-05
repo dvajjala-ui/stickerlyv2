@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
@@ -247,7 +248,7 @@ fun AddToPackDialog(app: AppModel, stickerIds: List<String>, onDone: (String?) -
                 OutlinedTextField(newName, { newName = it }, Modifier.fillMaxWidth(), singleLine = true,
                     label = { Text("New pack name") }, placeholder = { Text("e.g. Office pain") })
                 if (packs.isNotEmpty()) Text("Or choose a pack", style = MaterialTheme.typography.labelLarge)
-                LazyColumn(Modifier.fillMaxWidth().size(width = 400.dp, height = 260.dp)) {
+                LazyColumn(Modifier.fillMaxWidth().heightIn(max = 280.dp)) {
                     items(packs, key = { it.id }) { pack ->
                         ListItem(headlineContent = { Text(pack.name) },
                             supportingContent = { Text("${pack.count}/30${if (pack.kind == StickerKind.ANIMATED) " · animated" else ""}") },
