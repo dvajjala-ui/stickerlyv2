@@ -65,6 +65,8 @@ interface HostActions {
 
     fun refreshWhatsApp()
     fun addToWhatsApp(packId: String, targetId: String)
+    /** Adds the pack to every ready WhatsApp that doesn't have it yet, one confirmation after another. */
+    fun addToAllWhatsApps(packId: String)
     fun importPhoneFolder()
     fun importArchives()
     fun importImages()

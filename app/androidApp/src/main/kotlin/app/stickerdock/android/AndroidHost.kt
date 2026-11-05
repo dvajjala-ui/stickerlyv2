@@ -66,6 +66,22 @@ class AndroidHost(private val activity: ComponentActivity, private val graph: Ap
         graph.events.record("whatsapp", "add $packId to $targetId → result=${result.resultCode} $outcome")
         if (error != null || result.resultCode == Activity.RESULT_OK) showMessage(outcome)
         refreshWhatsApp()
+        // "Add to all": continue with the next WhatsApp unless the user cancelled this one.
+        val next = addQueue.removeFirstOrNull()
+        if (next != null && result.resultCode == Activity.RESULT_OK) addToWhatsApp(packId, next) else addQueue.clear()
+    }
+
+    private val addQueue = ArrayDeque<String>()
+
+    override fun addToAllWhatsApps(packId: String) {
+        val state = _whatsApp.value
+        // Main and Business first (their results chain the queue); the clone opens the companion, so it goes last.
+        val missing = state.targets.filter { it.ready && it.id !in state.added[packId].orEmpty() }
+            .sortedBy { it.kind.ordinal }.map { it.id }
+        if (missing.isEmpty()) return showMessage("Already in every WhatsApp on this phone")
+        addQueue.clear()
+        addQueue.addAll(missing.drop(1))
+        addToWhatsApp(packId, missing.first())
     }
 
     private val folderLauncher = activity.registerForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->

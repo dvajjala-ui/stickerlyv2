@@ -157,6 +157,10 @@ private fun WhatsAppAddCard(app: AppModel, packId: String, count: Int, ready: Bo
                     }
                 }
             }
+            val missing = targets.count { it.ready && it.id !in added }
+            if (ready && missing > 1) Button({ host.addToAllWhatsApps(packId) }, Modifier.fillMaxWidth()) {
+                Text("Add to all $missing WhatsApps")
+            }
             if (targets.any { it.kind == TargetKind.WHATSAPP }) Text(
                 "Two accounts inside one WhatsApp? Switch account in WhatsApp, then tap Add again." +
                     if (!keyboardReady) " Or turn on the StickerDock keyboard to send any sticker in any account." else "",
