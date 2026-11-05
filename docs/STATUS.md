@@ -77,6 +77,19 @@ All checks below ran over adb with debug-only command hooks; no WhatsApp UI was 
   its stickers; undo) and **Move to / out of the private vault** (confirm lists the packs it leaves). LibraryTest
   15/15 incl. rating/vault; snapshots show the slimmer selection bar and its menu. Phone check pending.
 
+## 2026-11-05 — pushed to GitHub, CI green
+- Repo: https://github.com/dvajjala-ui/stickerlyv2 (public). History rewritten before the first push: commits use the
+  owner's GitHub noreply address and the phone serial was removed from the docs. No secrets in any commit (scanned).
+- `main` CI passed on GitHub: [App](https://github.com/dvajjala-ui/stickerlyv2/actions/runs/41971725625) (shared JVM
+  tests, SQLDelight migration check, debug APK), [Supabase schema](https://github.com/dvajjala-ui/stickerlyv2/actions/runs/41971725595)
+  (PGlite), [Sticker worker](https://github.com/dvajjala-ui/stickerlyv2/actions/runs/41971584844) (pytest). iOS
+  workflow not run yet.
+- Branch `handnavigate-queue` (paused work): its schema test passes; its worker tests fail as expected (plan stage
+  untested), see docs/HANDNAVIGATE_PLAN.md.
+- Auto tags on the phone: the first rules read all 793 stickers (323 got names, 651 got search words, but some names
+  were watermarks). The second rules (small print and watermarks skipped, captions kept apart from names) are built
+  and unit-tested; the phone dropped off USB again before they could be installed.
+
 ## 2026-11-05 — Admin "Held" review queue (agent work, re-run by the lead)
 - `admin` `npm test` 105/105 (was 76), `npm run build` ok. Held tab with gate scores and reasons, drawer quality
   section, bulk approve/reject with confirm and per-sticker failure list, Quality gate settings card; demo data

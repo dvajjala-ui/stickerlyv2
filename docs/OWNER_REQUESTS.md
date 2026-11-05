@@ -8,6 +8,15 @@ phone testing next time, check the cable and that "USB debugging" stays allowed.
 drop is in STATUS.md. Not yet seen on the phone: the Discover infinite scroll (logic is unit-tested; the layout
 needs one look). The dev Discover server now serves a 147-sticker test feed from `work/dev-feed-big`.
 
+## 000. When the phone is plugged in again (I can do this, ~5 minutes)
+Install the latest dev build, then run `--es cmd autotag_clean_labels` and open the app. This clears names the first
+auto-tag pass wrote (some were watermarks like "SonyV.com SON"), and the improved rules then re-read all stickers.
+
+## 0000. GitHub (done: github.com/dvajjala-ui/stickerlyv2)
+The repo is **public**. When Supabase and Groq secrets are added under Settings → Secrets and variables → Actions,
+also add the repository *variable* `WORKER_SCHEDULE` = `on` to start the 30-minute AI worker. Until then the
+schedule is skipped, so you get no failure emails.
+
 ## 01. Delete the folder `D:\c` by hand (30 seconds)
 A helper agent accidentally wrote 15 synthetic test images under `D:\c\Users\...\scratchpad\e2e\in` (about 1.7 MB,
 created 08:27 today). Nothing else is in `D:\c`. My tools may not delete top-level drive folders, so please delete
