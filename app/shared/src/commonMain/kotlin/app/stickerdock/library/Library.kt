@@ -186,7 +186,7 @@ class Library(
 
     private fun nearDuplicate(kind: StickerKind, print: Fingerprint): String? {
         val list = hashes(kind) ?: q.stickerHashes(kind.name).executeAsList()
-            .mapNotNull { row -> row.dhash?.let { row.id to Fingerprint(it, row.frame_count.toInt(), row.duration_ms.toInt()) } }
+            .map { row -> row.id to Fingerprint(row.dhash, row.frame_count.toInt(), row.duration_ms.toInt()) } // query keeps hashed rows only
             .also { setHashes(kind, it) }
         return list.asSequence()
             .filter { (_, other) -> print.matches(other, kind == StickerKind.ANIMATED) }
@@ -216,6 +216,65 @@ class Library(
     }
 
     fun setFavorite(id: String, favorite: Boolean) { q.setFavorite(favorite, now(), id) }
+
+    /**
+     * Marks stickers 18+ or general. A pack's rating follows its stickers: 18+ as soon as one is, general once none is.
+     * Returns each sticker's previous rating, for undo.
+     */
+    fun setRating(ids: Collection<String>, rating: Rating): Map<String, Rating> {
+        val previous = linkedMapOf<String, Rating>()
+        q.transaction {
+            val t = now()
+            val packs = mutableSetOf<String>()
+            ids.distinct().forEach { id ->
+                val s = q.stickerById(id).executeAsOneOrNull() ?: return@forEach
+                previous[id] = Rating.valueOf(s.rating)
+                q.setStickerRating(rating.name, t, id)
+                packs += packsOf(id)
+            }
+            packs.forEach { packId ->
+                val adult = q.packAdultCount(packId).executeAsOne() > 0
+                q.setPackRating(if (adult) Rating.ADULT.name else Rating.GENERAL.name, t, packId)
+            }
+        }
+        return previous
+    }
+
+    /** Puts back what [setRating] returned. */
+    fun restoreRatings(previous: Map<String, Rating>) {
+        previous.entries.groupBy({ it.value }, { it.key }).forEach { (rating, ids) -> setRating(ids, rating) }
+    }
+
+    /**
+     * Moves stickers into or out of the private vault. Vault stickers only live in vault packs (and the reverse),
+     * so each sticker leaves the packs on the other side; returns those packs (WhatsApp updates them).
+     */
+    fun setVault(ids: Collection<String>, vault: Boolean): Set<String> {
+        val left = linkedSetOf<String>()
+        q.transaction {
+            val t = now()
+            ids.distinct().forEach { id ->
+                val s = q.stickerById(id).executeAsOneOrNull() ?: return@forEach
+                if (s.vault == vault) return@forEach
+                q.setStickerVault(vault, t, id)
+                q.packsContaining(id).executeAsList().filter { it.vault != vault }.forEach { pack ->
+                    q.removeItem(pack.id, id)
+                    left += pack.id
+                    if (pack.tray_sticker_id == id) q.setPackTray(q.packStickers(pack.id).executeAsList().firstOrNull()?.id, t, pack.id)
+                }
+            }
+            left.forEach { q.bumpPack(t, it) }
+        }
+        notify(left)
+        return left
+    }
+
+    /** Packs [setVault] would take these stickers out of. */
+    fun packsLeftByVaultMove(ids: Collection<String>, vault: Boolean): List<PackInfo> =
+        ids.distinct().flatMap { id ->
+            val s = q.stickerById(id).executeAsOneOrNull()
+            if (s == null || s.vault == vault) emptyList() else q.packsContaining(id).executeAsList().filter { it.vault != vault }
+        }.distinctBy { it.id }.map { it.toInfo(countOf(it.id)) }
 
     fun markUsed(id: String) { q.markUsed(now(), id) }
 

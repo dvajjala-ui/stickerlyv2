@@ -24,8 +24,12 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Clear
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.outlined.Star
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.BottomAppBar
 import androidx.compose.material3.DropdownMenu
@@ -59,6 +63,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import app.stickerdock.core.Rating
 import app.stickerdock.core.StickerKind
 import app.stickerdock.library.StickerFilter
 import app.stickerdock.library.StickerItem
@@ -119,21 +124,17 @@ fun LibraryScreen(app: AppModel, modifier: Modifier, onOpenPack: (String) -> Uni
         },
         bottomBar = {
             if (selection.isNotEmpty()) BottomAppBar {
-                Text("${selection.size} selected", Modifier.padding(start = 12.dp).weight(1f), fontWeight = FontWeight.SemiBold)
+                IconButton({ selection = emptySet() }) { Icon(Icons.Filled.Clear, "Clear selection") }
+                Text("${selection.size} selected", Modifier.weight(1f), fontWeight = FontWeight.SemiBold, maxLines = 1)
                 TextButton({ addToPack = selection.toList() }) { Text("Add to pack") }
-                TextButton({
-                    val ids = selection.toList()
-                    val first = library.sticker(ids.first())
-                    ids.forEach { library.setFavorite(it, !(first?.favorite ?: false)) }
-                    selection = emptySet()
-                }) { Text("★") }
-                TextButton({
+                IconButton({
                     val ids = selection.toList()
                     library.deleteStickers(ids)
                     selection = emptySet()
                     scope.notify(snackbar, "Deleted ${ids.size} sticker(s)") { library.undoDelete(ids) }
-                }) { Text("Delete") }
-                IconButton({ selection = emptySet() }) { Icon(Icons.Filled.Clear, "Clear selection") }
+                }) { Icon(Icons.Filled.Delete, "Delete") }
+                val selected = remember(selection) { selection.mapNotNull(library::sticker) }
+                StickerMoreMenu(app, selected, scope, withFavorite = true, onDone = { selection = emptySet() })
             }
         },
     ) { inner ->
@@ -252,10 +253,11 @@ fun StickerSheet(app: AppModel, item: StickerItem, onDismiss: () -> Unit, onAddT
     var tags by remember(item.id) { mutableStateOf(item.tags) }
     var emojis by remember(item.id) { mutableStateOf(item.emojis.replace(",", " ")) }
     val inPacks = remember(item.id) { library.packsContaining(item.id) }
-    ModalBottomSheet(onDismissRequest = {
+    val close = {
         if (label != item.label || tags != item.tags || emojis != item.emojis.replace(",", " ")) library.updateMeta(item.id, label, tags, emojis)
         onDismiss()
-    }) {
+    }
+    ModalBottomSheet(onDismissRequest = close) {
         Column(Modifier.padding(horizontal = 20.dp).padding(bottom = 28.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
                 StickerTile(app.model(item), item.title, Modifier.size(220.dp), animated = item.kind == StickerKind.ANIMATED, onClick = {})
@@ -264,15 +266,82 @@ fun StickerSheet(app: AppModel, item: StickerItem, onDismiss: () -> Unit, onAddT
             OutlinedTextField(tags, { tags = it }, Modifier.fillMaxWidth(), label = { Text("Tags (search words, Hinglish ok)") })
             OutlinedTextField(emojis, { emojis = it }, Modifier.fillMaxWidth(), label = { Text("Emojis for WhatsApp search (up to 3)") }, singleLine = true)
             if (inPacks.isNotEmpty()) Text("In: " + inPacks.joinToString { it.name }, style = MaterialTheme.typography.bodySmall)
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            if (item.rating == Rating.ADULT || item.vault) Text(listOfNotNull("18+".takeIf { item.rating == Rating.ADULT },
+                "In your private vault".takeIf { item.vault }).joinToString(" · "), style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.primary)
+            Row(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
                 Button(onClick = onAddToPack) { Text("Add to pack") }
-                TextButton({ library.setFavorite(item.id, !item.favorite); onDismiss() }) { Text(if (item.favorite) "Unfavorite" else "★ Favorite") }
+                IconButton({ library.setFavorite(item.id, !item.favorite); close() }) {
+                    Icon(if (item.favorite) Icons.Filled.Star else Icons.Outlined.Star, if (item.favorite) "Unfavorite" else "Favorite")
+                }
                 TextButton({
                     library.deleteStickers(listOf(item.id)); onDismiss()
                     scope.notify(snackbar, "Sticker deleted") { library.undoDelete(listOf(item.id)) }
                 }) { Text("Delete") }
+                StickerMoreMenu(app, listOf(item), scope, onDone = close)
             }
         }
+    }
+}
+
+/** Share, 18+ and vault actions for one or more stickers (sheet and multi-select bar). */
+@Composable
+internal fun StickerMoreMenu(app: AppModel, items: List<StickerItem>, scope: CoroutineScope, withFavorite: Boolean = false, onDone: () -> Unit) {
+    val library = app.library
+    val snackbar = LocalSnackbar.current
+    var open by remember { mutableStateOf(false) }
+    var vaultMove by remember { mutableStateOf<Boolean?>(null) }
+    val ids = items.map { it.id }
+    val allAdult = items.all { it.rating == Rating.ADULT }
+    val allVault = items.all { it.vault }
+    Box {
+        IconButton({ open = true }) { Icon(Icons.Filled.MoreVert, "More") }
+        DropdownMenu(open, { open = false }) {
+            DropdownMenuItem({ Text("Share") }, { open = false; app.host.shareStickers(ids) })
+            if (withFavorite) {
+                val allFavorite = items.all { it.favorite }
+                DropdownMenuItem({ Text(if (allFavorite) "Remove from favourites" else "Add to favourites") }, {
+                    open = false
+                    ids.forEach { library.setFavorite(it, !allFavorite) }
+                    onDone()
+                })
+            }
+            DropdownMenuItem({ Text(if (allAdult) "Mark as general" else "Mark 18+") }, {
+                open = false
+                val rating = if (allAdult) Rating.GENERAL else Rating.ADULT
+                val previous = library.setRating(ids, rating)
+                onDone()
+                val hidden = rating == Rating.ADULT && !app.adultEnabled
+                scope.notify(snackbar, (if (rating == Rating.ADULT) "Marked 18+" else "Marked general") +
+                    if (hidden) " — hidden until you turn on 18+ in Settings" else "") { library.restoreRatings(previous) }
+            })
+            DropdownMenuItem({ Text(if (allVault) "Move out of the vault" else "Move to private vault") }, {
+                open = false; vaultMove = !allVault
+            })
+        }
+    }
+    vaultMove?.let { toVault ->
+        val leaving = remember(ids, toVault) { library.packsLeftByVaultMove(ids, toVault) }
+        AlertDialog({ vaultMove = null },
+            title = { Text(if (toVault) "Move to private vault?" else "Move out of the vault?") },
+            text = {
+                Text(buildString {
+                    append(if (toVault) "Vault stickers stay on this phone, never sync and only show while the vault is open."
+                        else "These stickers return to your normal library.")
+                    if (leaving.isNotEmpty()) append(" They leave ${leaving.joinToString { "“${it.name}”" }}" +
+                        (if (toVault) ", because vault stickers only go in vault packs" else "") + ". WhatsApp updates those packs.")
+                })
+            },
+            confirmButton = {
+                TextButton({
+                    val left = library.setVault(ids, toVault)
+                    vaultMove = null
+                    onDone()
+                    scope.notify(snackbar, "${ids.size} sticker(s) moved ${if (toVault) "to the vault" else "out of the vault"}" +
+                        if (left.isNotEmpty()) " · left ${left.size} pack(s)" else "")
+                }) { Text("Move") }
+            },
+            dismissButton = { TextButton({ vaultMove = null }) { Text("Cancel") } })
     }
 }
 

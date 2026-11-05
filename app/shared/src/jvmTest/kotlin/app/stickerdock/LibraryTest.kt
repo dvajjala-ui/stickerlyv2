@@ -231,6 +231,28 @@ class LibraryTest {
         assertTrue(lib.missingHashes().isEmpty())
     }
 
+    @Test fun ratingFollowsStickersAndVaultMovesLeavePacks() {
+        val a = addStatic(1); val b = addStatic(2); val c = addStatic(3)
+        val pack = lib.createPack("Mixed", StickerKind.STATIC)
+        lib.addToPack(pack, listOf(a, b, c))
+        val before = lib.setRating(listOf(a), Rating.ADULT)
+        assertEquals(Rating.ADULT, lib.pack(pack)!!.rating, "one 18+ sticker makes the pack 18+")
+        assertEquals(mapOf(a to Rating.GENERAL), before)
+        lib.restoreRatings(before)
+        assertEquals(Rating.GENERAL, lib.pack(pack)!!.rating, "no 18+ sticker left")
+        lib.setTray(pack, b)
+        assertEquals(listOf("Mixed"), lib.packsLeftByVaultMove(listOf(b), true).map { it.name })
+        val v0 = lib.pack(pack)!!.dataVersion
+        assertEquals(setOf(pack), lib.setVault(listOf(b), true))
+        assertEquals(listOf(a, c), lib.packStickers(pack).map { it.id })
+        assertTrue(lib.pack(pack)!!.dataVersion > v0, "WhatsApp reloads the pack")
+        assertEquals(a, lib.pack(pack)!!.trayStickerId, "cover moves to the first remaining sticker")
+        assertTrue(lib.stickers(StickerFilter()).none { it.id == b })
+        assertEquals(listOf(b), lib.stickers(StickerFilter(vault = true)).map { it.id })
+        assertTrue(lib.setVault(listOf(b), true).isEmpty(), "already in the vault")
+        assertTrue(lib.packsLeftByVaultMove(listOf(b), false).isEmpty())
+    }
+
     @Test fun deletingPackKeepsStickersAndPurgeRemovesFiles() {
         val pack = lib.createPack("Temp", StickerKind.STATIC)
         val ids = (1..3).map { addStatic(it) }

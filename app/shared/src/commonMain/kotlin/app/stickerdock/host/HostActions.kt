@@ -82,6 +82,8 @@ interface HostActions {
     fun createFromVideo()
     fun cancelImport()
     fun sharePack(packId: String)
+    /** Sends sticker files to another app (Telegram, Instagram, a WhatsApp chat…) through the system share sheet. */
+    fun shareStickers(stickerIds: List<String>) = showMessage("Sharing single stickers isn't available here yet")
     fun exportBackup()
     fun openKeyboardSettings()
     fun pickKeyboard()

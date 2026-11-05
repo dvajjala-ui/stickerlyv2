@@ -73,6 +73,9 @@ All checks below ran over adb with debug-only command hooks; no WhatsApp UI was 
 - Headless UI snapshots (Compose Desktop): library, packs, pack, WhatsApp shelf "12 of 10", Discover paging through
   3 pages to the end footer against the dev server, sort menu, Settings, Duplicates (merge + undo snackbar).
 - `:androidApp:assembleDebug` builds with the duplicate finder's Android hashing hook; not yet run on the phone.
+- Sticker sheet and multi-select gained **Share** (system share sheet), **Mark 18+ / general** (pack rating follows
+  its stickers; undo) and **Move to / out of the private vault** (confirm lists the packs it leaves). LibraryTest
+  15/15 incl. rating/vault; snapshots show the slimmer selection bar and its menu. Phone check pending.
 
 ## 2026-11-05 — tests (re-run by the lead, not only by the agents)
 - Admin: `npm test` 76/76 pass; `npm run build` ok.

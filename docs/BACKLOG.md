@@ -21,7 +21,7 @@
 9. ~~Find & merge duplicates already in the library~~ — DONE: Settings → Find duplicates (hashes older stickers
    first); keeper takes the copies' pack places, covers, favourite and words; undo; warns when a pack drops below 3.
 10. Import progress UI for the companion path; SAF picker flow check on device (A2 UI, A3 process death).
-11. Pagination for libraries > 2,000 stickers (current grid loads up to 600 per query).
+11. ~~Pagination for large libraries~~ — DONE (grid grows 300 at a time as you scroll).
 
 ## Core — AI factory & Discover
 12. Supabase project (owner) → apply migration, deploy `intake`, connect worker cron, publish first stickers.

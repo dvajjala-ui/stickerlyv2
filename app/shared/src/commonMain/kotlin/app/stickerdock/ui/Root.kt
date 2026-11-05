@@ -5,7 +5,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Search
-import androidx.compose.material.icons.filled.Send
+import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
@@ -110,7 +110,7 @@ private fun HomeScreen(app: AppModel, onOpenPack: (String) -> Unit, onOpenSettin
                             Icon(when (item) {
                                 HomeTab.LIBRARY -> Icons.Filled.Home
                                 HomeTab.DISCOVER -> Icons.Filled.Search
-                                HomeTab.WHATSAPP -> Icons.Filled.Send
+                                HomeTab.WHATSAPP -> Icons.AutoMirrored.Filled.Send
                             }, contentDescription = null)
                         },
                         label = { Text(item.label) },

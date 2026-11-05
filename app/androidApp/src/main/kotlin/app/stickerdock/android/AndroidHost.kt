@@ -237,6 +237,20 @@ class AndroidHost(private val activity: ComponentActivity, private val graph: Ap
         }
     }
 
+    override fun shareStickers(stickerIds: List<String>) {
+        val uris = stickerIds.mapNotNull { id ->
+            graph.files.file(id).takeIf { it.isFile }?.let { FileProvider.getUriForFile(activity, "${activity.packageName}.files", it) }
+        }
+        if (uris.isEmpty()) return showMessage("Nothing to share")
+        val send = if (uris.size == 1) Intent(Intent.ACTION_SEND).putExtra(Intent.EXTRA_STREAM, uris.first())
+            else Intent(Intent.ACTION_SEND_MULTIPLE).putParcelableArrayListExtra(Intent.EXTRA_STREAM, ArrayList(uris))
+        send.setType("image/webp").addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        // ClipData carries the read grant for every file through the chooser.
+        send.clipData = android.content.ClipData.newRawUri(null, uris.first()).apply { uris.drop(1).forEach { addItem(android.content.ClipData.Item(it)) } }
+        graph.events.record("share", "sharing ${uris.size} sticker(s)")
+        activity.startActivity(Intent.createChooser(send, if (uris.size == 1) "Share sticker" else "Share ${uris.size} stickers"))
+    }
+
     override fun exportBackup() = backupLauncher.launch("StickerDock-backup.zip")
 
     override fun openKeyboardSettings() = activity.startActivity(Intent(Settings.ACTION_INPUT_METHOD_SETTINGS))

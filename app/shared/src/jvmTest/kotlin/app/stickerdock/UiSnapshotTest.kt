@@ -15,6 +15,8 @@ import androidx.compose.ui.test.captureToImage
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollToIndex
 import androidx.compose.ui.test.performScrollToNode
+import androidx.compose.ui.test.performTouchInput
+import androidx.compose.ui.test.longClick
 import androidx.compose.ui.test.runDesktopComposeUiTest
 import androidx.compose.ui.unit.Density
 import app.cash.sqldelight.driver.jdbc.sqlite.JdbcSqliteDriver
@@ -78,6 +80,13 @@ class UiSnapshotTest {
         onAllNodes(hasContentDescription("Settings") and hasClickAction()).onFirst().performClick(); settle(1); shot("10-settings")
         tap("Find duplicates"); settle(); shot("11-duplicates")
         tap("Merge all"); settle(); shot("12-duplicates-merged")
+        step { onAllNodes(hasText("Back") or hasContentDescription("Back")).onFirst().performClick() }; settle(1)
+        step { onAllNodes(hasText("Back") or hasContentDescription("Back")).onFirst().performClick() }; settle(1)
+        // Long-press a sticker to select it, then open the bulk "More" menu.
+        step { onAllNodes(hasContentDescription("Monday", substring = true) and hasClickAction()).onFirst().performTouchInput { longClick() } }; settle(1)
+        shot("13-selection")
+        step { onAllNodes(hasContentDescription("More") and hasClickAction()).onFirst().performClick() }; settle(1)
+        shot("14-selection-more")
     }
 
     private fun app(script: ComposeUiTest.(Library) -> Unit) {

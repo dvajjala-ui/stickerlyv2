@@ -113,6 +113,13 @@ ORDER BY
     created_at DESC, id
 LIMIT :limit OFFSET :offset;
 
+setStickerVault:
+UPDATE sticker SET vault = :vault, updated_at = :now WHERE id = :id;
+
+packAdultCount:
+SELECT COUNT(*) FROM pack_item pi JOIN sticker s ON s.id = pi.sticker_id
+WHERE pi.pack_id = ? AND s.deleted_at IS NULL AND s.rating = 'ADULT';
+
 -- ---------- duplicates ----------
 stickerFingerprints:
 SELECT s.id, s.kind, s.rating, s.dhash, s.frame_count, s.duration_ms, s.use_count, s.favorite, s.created_at,
