@@ -70,6 +70,14 @@ export function checkPack(p: PackDraft, opts: { forPublish: boolean; protectedNa
     else warning('drafts', msg, drafts.map((x) => x.id))
   }
 
+  // The worker never packs held stickers; one can only get here through old data or a manual edit.
+  const held = p.stickers.filter((x) => x.status === 'held')
+  if (held.length) {
+    const msg = `${s(held.length)} held by the quality gate. Approve or remove ${held.length === 1 ? 'it' : 'them'} (Stickers → Held)`
+    if (opts.forPublish) error('held', msg, held.map((x) => x.id))
+    else warning('held', msg, held.map((x) => x.id))
+  }
+
   // Per-sticker blockers (except taken_down, reported above), grouped by rule.
   const groups = new Map<string, { message: string; ids: string[] }>()
   for (const st of p.stickers) {

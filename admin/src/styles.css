@@ -1346,6 +1346,21 @@ fieldset.form {
   background: var(--warn-bg);
   color: var(--warn);
 }
+.tile-flags > .flag-ok {
+  background: var(--ok-bg);
+  color: var(--ok);
+}
+/* Quality gate reasons on held / low-scoring tiles; above the stretched button so the tooltip shows. */
+.tile-reasons {
+  position: relative;
+  z-index: 2;
+  font-size: 11px;
+  font-weight: 650;
+  color: var(--warn);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 
 .media-box {
   position: relative;
@@ -1452,6 +1467,14 @@ fieldset.form {
   border-color: var(--ink-4);
   color: var(--paper);
 }
+/* Wraps inside itself so the confirm buttons stay on the same row. */
+.bulk-confirm {
+  flex: 1 1 240px;
+  min-width: 0;
+  font-size: 13px;
+  font-weight: 650;
+  text-align: right;
+}
 
 /* ---------------------------------------------------------------- drawer & details */
 
@@ -1552,6 +1575,21 @@ fieldset.form {
 .sticker-hero > .checker {
   flex: none;
   border: 1px solid var(--line);
+}
+
+.reason-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+.reason-list li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 6px;
 }
 
 .json-block {
@@ -2252,6 +2290,10 @@ fieldset.form {
     bottom: 8px;
     gap: 6px;
     padding: 8px 10px;
+  }
+  .bulk-confirm {
+    flex-basis: 100%;
+    text-align: left;
   }
   .drawer,
   .drawer-wide {

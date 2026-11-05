@@ -1,5 +1,5 @@
-// Row types mirroring backend/supabase/migrations/20261105000001_core.sql.
-// `embedding` and `search_text` columns are never selected by the admin.
+// Row types mirroring backend/supabase/migrations/20261105000001_core.sql and the quality gate
+// columns of 20261105000003_quality_gate.sql. `embedding` and `search_text` are never selected.
 
 export type Uuid = string
 export type Iso = string
@@ -109,7 +109,11 @@ export type UploadOutcome =
 
 // ------------------------------------------------------------------ stickers
 
-export const STICKER_STATUSES = ['draft', 'published', 'rejected', 'taken_down'] as const
+/**
+ * `held` = the content policy would publish it, but the worker's quality gate scored it below
+ * settings.quality_gate.min_score. Only the worker sets it; an admin approves (→ published) or rejects.
+ */
+export const STICKER_STATUSES = ['draft', 'held', 'published', 'rejected', 'taken_down'] as const
 export type StickerStatus = (typeof STICKER_STATUSES)[number]
 export type StickerKind = 'static' | 'animated'
 export type Rating = 'general' | 'adult'
@@ -141,6 +145,7 @@ export interface Sticker {
   bytes: number
   ai_generated: boolean
   credit: Credit | null
+  /** AI sticker score of the source, 0–10 (publish_policy.min_quality). */
   quality: number | null
   trend_id: Uuid | null
   status: StickerStatus
@@ -148,12 +153,20 @@ export interface Sticker {
   published_at: Iso | null
   created_at: Iso
   updated_at: Iso
+  /** Worker quality gate, 0–100 (null: made before the gate, or not made by the worker). */
+  quality_score: number | null
+  /** Machine-readable gate reasons, worst first: blurry, tiny_subject, judge:<issue>, … */
+  quality_reasons: string[]
+  /** Gate measurements (coverage, sharpness, caption contrast, duplicate match, timing, judge). */
+  quality_signals: Json | null
+  /** pHash of the finished sticker's visible area (`phash` is the source's). */
+  render_phash: string | null
 }
 
 export const STICKER_COLUMNS = [
   'id', 'source_id', 'recipe', 'kind', 'rating', 'category', 'caption', 'language', 'tags', 'emojis', 'description',
   'file_path', 'sha256', 'phash', 'bytes', 'ai_generated', 'credit', 'quality', 'trend_id', 'status', 'review_note',
-  'published_at', 'created_at', 'updated_at',
+  'published_at', 'created_at', 'updated_at', 'quality_score', 'quality_reasons', 'quality_signals', 'render_phash',
 ] as const satisfies readonly (keyof Sticker)[]
 
 /** Safety/provenance flags of a sticker's source, embedded with each sticker. */
@@ -169,7 +182,8 @@ export interface StickerRow extends Sticker {
   source: SourceFlags | null
 }
 
-export type StickerSort = 'created' | 'published' | 'quality' | 'size'
+/** `score` = quality gate score, lowest first; every other sort is highest/newest first. */
+export type StickerSort = 'created' | 'published' | 'quality' | 'size' | 'score'
 export interface StickerFilter {
   status?: StickerStatus
   category?: string
@@ -183,6 +197,20 @@ export interface StickerFilter {
 export type StickerPatch = Partial<
   Pick<Sticker, 'caption' | 'tags' | 'emojis' | 'category' | 'rating' | 'ai_generated' | 'review_note' | 'description'>
 >
+
+/** Review of held stickers: approve = publish (published_at is set on first publish), reject = rejected. */
+export type HeldDecision = 'approve' | 'reject'
+export const HELD_DECISION_STATUS = { approve: 'published', reject: 'rejected' } as const satisfies Record<HeldDecision, StickerStatus>
+
+/** Per-sticker result of a held review; every requested id lands in exactly one bucket. */
+export interface HeldReviewOutcome {
+  /** Were held and changed. */
+  done: Uuid[]
+  /** No longer held when the request ran (approved, rejected or taken down elsewhere, or gone); left as they are. */
+  notHeld: Uuid[]
+  /** Requests that failed, with the ids each one covered (nothing changed for them). */
+  failed: { ids: Uuid[]; message: string }[]
+}
 
 // ------------------------------------------------------------------ packs
 
@@ -309,10 +337,23 @@ export interface CategoriesSetting {
   enabled: string[]
 }
 
+/** settings.quality_gate (worker stage 3). Scores and the band are whole numbers 0–100. */
+export interface QualityGate {
+  /** false: scores are still recorded, nothing is held. */
+  enabled: boolean
+  /** A sticker the policy would publish but that scores below this is held. */
+  min_score: number
+  /** Ask Groq vision about borderline stickers; one image of budgets.vision_per_day each. */
+  vision_judge: boolean
+  /** The judge sees stickers scoring in [min_score − band, min_score + band) without a hard problem. */
+  judge_band: number
+}
+
 export interface SettingValues {
   publish_policy: PublishPolicy
   budgets: Budgets
   categories: CategoriesSetting
+  quality_gate: QualityGate
 }
 export type SettingKey = keyof SettingValues
 
@@ -330,6 +371,7 @@ export const DEFAULT_SETTINGS: SettingValues = {
       'festivals', 'animals', 'baby', 'trending', 'adult',
     ],
   },
+  quality_gate: { enabled: true, min_score: 60, vision_judge: false, judge_band: 20 },
 }
 
 export interface ProtectedPerson {

@@ -77,6 +77,18 @@ All checks below ran over adb with debug-only command hooks; no WhatsApp UI was 
   its stickers; undo) and **Move to / out of the private vault** (confirm lists the packs it leaves). LibraryTest
   15/15 incl. rating/vault; snapshots show the slimmer selection bar and its menu. Phone check pending.
 
+## 2026-11-05 — Admin "Held" review queue (agent work, re-run by the lead)
+- `admin` `npm test` 105/105 (was 76), `npm run build` ok. Held tab with gate scores and reasons, drawer quality
+  section, bulk approve/reject with confirm and per-sticker failure list, Quality gate settings card; demo data
+  covers each hold reason. Needs migration `20261105000003` applied before deploying (queries select its columns).
+
+## 2026-11-05 — Supabase migrations executed (PGlite)
+- `backend/supabase/test` (`npm test`) 4/4: all three migrations apply in order on PGlite 0.5.11 set up like a fresh
+  Supabase project (roles + default grants, auth/storage stand-ins, pgcrypto, pg_trgm, pgvector 0.0.12). As the
+  `anon` role only published stickers come back from `discover_stickers`, `search_stickers` and the `stickers` table
+  (RLS); `held` + score checks hold; pack `sticker_count`/`version` count published stickers only and packs under 3
+  stay out of `discover_packs`. First real execution of the schema; a live project is still owner-blocked.
+
 ## 2026-11-05 — worker quality gate (agent work, re-run by the lead)
 - Worker `pytest` 198/198 (was 158): scorer unit tests on synthetic images, held-vs-published end to end,
   migration `20261105000003_quality_gate.sql` checked statically (not applied to a live DB yet), Supabase

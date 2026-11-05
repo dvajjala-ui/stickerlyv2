@@ -1,4 +1,4 @@
-// settings (jsonb key/value: publish_policy, budgets, categories).
+// settings (jsonb key/value: publish_policy, budgets, categories, quality_gate).
 
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { clone, delay, type DemoDb } from './demo/db'

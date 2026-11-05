@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it } from 'vitest'
 import { istDate, istDayStart } from '../lib/format'
 import { checkEmojis } from '../lib/emoji'
 import type { PreparedUpload } from '../lib/media'
+import { duplicateOf, parseGateNote } from '../lib/quality'
 import { sha256Hex } from '../lib/sha256'
 import { DEMO_ADMIN_EMAIL } from './auth'
 import { createDemoApi, type Api } from './compose'
@@ -150,6 +151,71 @@ describe('stickers (demo)', () => {
     expect(adult.rows.every((r) => r.rating === 'adult' && r.status === 'published')).toBe(true)
     const animated = await api.stickers.list({ kind: 'animated' }, PAGE)
     expect(animated.rows.every((r) => r.kind === 'animated')).toBe(true)
+  })
+})
+
+describe('held stickers (demo)', () => {
+  const held = () => db.stickers.filter((s) => s.status === 'held')
+
+  it('fixtures look like the worker wrote them', () => {
+    expect(held().length).toBeGreaterThanOrEqual(5)
+    for (const s of db.stickers) {
+      expect(s.quality_score === null || (Number.isInteger(s.quality_score) && s.quality_score >= 0 && s.quality_score <= 100)).toBe(true)
+      expect(s.render_phash === null || /^[0-9a-f]{16}$/.test(s.render_phash)).toBe(true)
+    }
+    for (const s of held()) {
+      expect(s.quality_score).toBeLessThan(db.settings.quality_gate.value.min_score)
+      expect(s.quality_reasons.length).toBeGreaterThan(0)
+      expect(s.published_at).toBeNull()
+      expect(parseGateNote(s.review_note)).toEqual({ score: s.quality_score, min: 60, reasons: s.quality_reasons })
+      expect(db.packItems.some((i) => i.sticker_id === s.id)).toBe(false) // never packed
+    }
+    const reasons = new Set(held().flatMap((s) => s.quality_reasons))
+    for (const r of ['blurry', 'tiny_subject', 'caption_low_contrast', 'near_duplicate', 'judge:pixelated']) expect(reasons).toContain(r)
+    const dup = held().find((s) => s.quality_reasons.includes('near_duplicate'))!
+    expect(db.stickers.some((s) => s.id === duplicateOf(dup.quality_signals)?.id && s.status === 'published')).toBe(true)
+  })
+
+  it('lists the held queue newest first, or by gate score lowest first', async () => {
+    const newest = await api.stickers.list({ status: 'held', sort: 'created' }, PAGE)
+    expect(newest.total).toBe(held().length)
+    const times = newest.rows.map((r) => r.created_at)
+    expect(times).toEqual([...times].sort().reverse())
+    const scores = (await api.stickers.list({ status: 'held', sort: 'score' }, PAGE)).rows.map((r) => r.quality_score!)
+    expect(scores).toEqual([...scores].sort((a, b) => a - b))
+  })
+
+  it('approve publishes (setting published_at once) and reject rejects, only for rows still held', async () => {
+    const [a, b, c] = held()
+    const published = db.stickers.find((s) => s.status === 'published')!
+    const publishedAt = published.published_at
+
+    const out = await api.stickers.reviewHeld([a.id, b.id, published.id, 'missing-id'], 'approve')
+    expect(out).toEqual({ done: [a.id, b.id], notHeld: [published.id, 'missing-id'], failed: [] })
+    expect(a).toMatchObject({ status: 'published' })
+    expect(a.published_at).not.toBeNull()
+    expect(published.published_at).toBe(publishedAt)
+
+    expect(await api.stickers.reviewHeld([c.id, a.id], 'reject')).toEqual({ done: [c.id], notHeld: [a.id], failed: [] })
+    expect(c).toMatchObject({ status: 'rejected', published_at: null })
+    expect(a.status).toBe('published') // an approved sticker is not rejected by a stale selection
+  })
+
+  it('never touches a taken-down sticker', async () => {
+    const s = held()[0]
+    await api.takedowns.takeDown('sticker', s.id, 'test')
+    expect(await api.stickers.reviewHeld([s.id], 'approve')).toMatchObject({ done: [], notHeld: [s.id] })
+    expect(s.status).toBe('taken_down')
+  })
+
+  it('round-trips the quality_gate setting and fills it from defaults', async () => {
+    const s = await api.settings.load()
+    expect(s.quality_gate).toEqual({ enabled: true, min_score: 60, vision_judge: false, judge_band: 20 })
+    await api.settings.save('quality_gate', { ...s.quality_gate, min_score: 45, vision_judge: true })
+    expect((await api.settings.load()).quality_gate).toMatchObject({ min_score: 45, vision_judge: true, judge_band: 20 })
+    const merged = mergeSettings([{ key: 'quality_gate', value: { enabled: false }, updated_at: NOW.toISOString() }])
+    expect(merged.quality_gate).toEqual({ enabled: false, min_score: 60, vision_judge: false, judge_band: 20 })
+    expect(merged.updated_at.quality_gate).toBe(NOW.toISOString())
   })
 })
 

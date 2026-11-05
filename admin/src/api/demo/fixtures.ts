@@ -24,7 +24,7 @@ import type {
   WorkerRun,
 } from '../types'
 import { DEFAULT_SETTINGS } from '../types'
-import { mulberry32, sourceArt, stickerArt } from './art'
+import { mulberry32, sourceArt, stickerArt, type ArtFlaw } from './art'
 import { emptyDemoDb, touchPackCounts, type DemoDb } from './db'
 
 export interface SeedOptions {
@@ -68,7 +68,22 @@ interface StickerSpec {
   figure?: string
   nsfw?: Nsfw
   note?: string
+  /** Quality gate penalties (worker imaging/quality.py); score = 100 − their sum unless `score` says otherwise. */
+  penalties?: Record<string, number>
+  /** Final gate score when caps or the vision judge changed it. */
+  score?: number
+  /** Extra quality_signals (measurements, judge verdict). */
+  signals?: { [key: string]: Json }
+  /** Reasons the vision judge added (`judge:<issue>`). */
+  judged?: string[]
+  /** near_duplicate: caption of the sticker this one repeats. */
+  dupOf?: string
+  flaw?: ArtFlaw
 }
+
+/** Stickers older than this were made before the quality gate shipped, so they have no score. */
+const GATE_SHIPPED_HOURS_AGO = 120
+const GATE_MIN_SCORE = DEFAULT_SETTINGS.quality_gate.min_score
 
 const S = 'static' as const
 const A = 'animated' as const
@@ -113,12 +128,64 @@ const STICKERS: StickerSpec[] = [
   { caption: 'Salary aayi, salary gayi', emojis: ['💸', '😭'], cat: 'office', kind: A, rating: G, status: 'published', recipe: 'motion', tags: ['salary', 'month end'], q: 9, kb: 377, scene: 'Cartoon wallet with money flying away', at: 28 },
   { caption: 'HR ko mat batana', emojis: ['🤫'], cat: 'office', kind: S, rating: G, status: 'published', recipe: 'caption', tags: ['hr', 'secret'], q: 8, kb: 41, scene: 'Colleagues whispering by the coffee machine', at: 65, real: true },
   { caption: 'Weekend kab aayega', emojis: ['📅', '😮‍💨'], cat: 'office', kind: S, rating: G, status: 'published', recipe: 'caption', tags: ['weekend', 'office'], q: 7, kb: 37, scene: 'Desk calendar with Friday circled in red', at: 36 },
-  { caption: 'Jhooth mat bolo', emojis: ['🤥'], cat: 'reactions', kind: S, rating: G, status: 'rejected', recipe: 'caption', tags: ['lie'], q: 4, kb: 45, scene: 'Blurry screenshot of a TV serial', at: 0.7, note: 'Low-quality crop' },
-  { caption: 'Blurry copy', emojis: ['😐'], cat: 'memes', kind: S, rating: G, status: 'rejected', recipe: 'direct', tags: ['lowres'], q: 2, kb: 22, scene: 'Heavily compressed reposted meme', at: 0.66, note: 'Too blurry' },
+  { caption: 'Jhooth mat bolo', emojis: ['🤥'], cat: 'reactions', kind: S, rating: G, status: 'rejected', recipe: 'caption', tags: ['lie'], q: 4, kb: 45, scene: 'Blurry screenshot of a TV serial', at: 0.7, note: 'Low-quality crop', penalties: { blurry: 45, small_subject: 7.2 }, signals: { bbox: 0.2352, sharpness: 10.4, sharpness_rel: 0.0068 } },
+  { caption: 'Blurry copy', emojis: ['😐'], cat: 'memes', kind: S, rating: G, status: 'rejected', recipe: 'direct', tags: ['lowres'], q: 2, kb: 22, scene: 'Heavily compressed reposted meme', at: 0.66, note: 'Too blurry', penalties: { blurry: 45 }, signals: { sharpness: 7.9, sharpness_rel: 0.0049 } },
   { caption: 'Bade log, badi baatein', emojis: ['🙄'], cat: 'memes', kind: S, rating: G, status: 'taken_down', recipe: 'direct', tags: ['comic'], q: 6, kb: 40, scene: 'Panel from a paid web comic', at: 200, note: 'report:copyright — creator request' },
   { caption: 'Hero entry', emojis: ['😎'], cat: 'movies', kind: S, rating: G, status: 'draft', recipe: 'direct', tags: ['filmy', 'entry'], q: 7, kb: 63, scene: 'Film still of a famous actor making a slow-motion entry', at: 0.25, real: true, figure: 'Anil Kapoor' },
   { caption: 'Chhota packet, bada dhamaka', emojis: ['💥'], cat: 'adult', kind: S, rating: X, status: 'draft', recipe: 'caption', tags: ['spicy'], q: 6, kb: 49, scene: 'Toddler flexing tiny arms', at: 0.22, minors: true, real: true },
+  // Held by the quality gate: the policy would publish them, the gate scored them below 60.
+  // Hard reasons (tiny_subject, caption_low_contrast, near_duplicate, caption_clipped) cap the score at 35.
+  { caption: 'Kitna late hai yaar', emojis: ['⏰', '😤'], cat: 'reactions', kind: S, rating: G, status: 'held', recipe: 'caption', tags: ['late', 'waiting', 'friends'], q: 7, kb: 41, scene: 'Friend tapping a wristwatch outside a cafe', at: 0.58, real: true, penalties: { blurry: 45 }, signals: { sharpness: 8.7, sharpness_rel: 0.0061 }, flaw: 'blurry' },
+  { caption: 'Ghar se kaam, ghar ka kaam', emojis: ['🏠', '💻'], cat: 'office', kind: S, rating: G, status: 'held', recipe: 'cutout', tags: ['wfh', 'chores', 'office'], q: 7, kb: 36, scene: 'Woman on a laptop call while stirring a pot', at: 0.48, real: true, penalties: { tiny_subject: 50 }, score: 35, signals: { visible: 0.0861, bbox: 0.1043, fill: 0.826, measured: 0.0312 }, flaw: 'tiny' },
+  { caption: 'Sunday ko bhi meeting?', emojis: ['📅', '😩'], cat: 'office', kind: S, rating: G, status: 'held', recipe: 'caption', tags: ['meeting', 'weekend', 'office'], q: 8, kb: 47, scene: 'Man in pyjamas joining a video call', at: 0.42, real: true, penalties: { caption_low_contrast: 45 }, score: 35, signals: { caption_contrast: 1.84 }, flaw: 'low_contrast' },
+  { caption: 'Chai break?', emojis: ['☕', '🙂'], cat: 'reactions', kind: S, rating: G, status: 'held', recipe: 'cutout', tags: ['chai', 'break'], q: 8, kb: 43, scene: 'Kitten peeking out of a clay cup, cropped tighter', at: 3, penalties: { near_duplicate: 50 }, score: 35, dupOf: 'Chai peelo, sab theek ho jayega' },
+  { caption: 'Nachoge nahi?', emojis: ['💃', '🎉'], cat: 'songs', kind: A, rating: G, status: 'held', recipe: 'motion', tags: ['dance', 'party', 'sangeet'], q: 7, kb: 268, scene: 'Cousins dancing at a sangeet', at: 0.3, real: true, penalties: { animation_few_frames: 15, animation_choppy: 15, soft: 14.2 }, signals: { sharpness: 19.1, sharpness_rel: 0.0105, frames: 2, duration_ms: 800, median_frame_ms: 400 } },
+  { caption: 'Bas 5 minute', emojis: ['⏳', '🙏'], cat: 'hinglish', kind: S, rating: G, status: 'held', recipe: 'caption', tags: ['waiting', 'excuse', '5 minute'], q: 7, kb: 39, scene: 'Man on a scooter waving from a traffic jam', at: 20, real: true, penalties: { small_subject: 14.4, soft: 9.5 }, score: 53, judged: ['pixelated'], signals: { bbox: 0.17, sharpness: 27.9, sharpness_rel: 0.0151, judge: { score: 3, issues: ['pixelated'] }, local_score: 76 } },
+  // No emoji: the panel's publish rules block approving it, so a bulk approve reports it as skipped.
+  { caption: 'Raat abhi baaki hai', emojis: [], cat: 'adult', kind: S, rating: X, status: 'held', recipe: 'caption', tags: ['late night', 'spicy'], q: 7, kb: 45, scene: 'Cartoon owl winking under a full moon', at: 0.12, nsfw: 'suggestive', penalties: { caption_clipped: 45 }, score: 35, signals: { caption_box: [-14, 396, 526, 480] } },
 ]
+
+/** quality_signals as the worker writes them: base measurements, the spec's overrides, then penalties. */
+function gateSignals(i: number, spec: StickerSpec, penalties: Record<string, number>): { [key: string]: Json } {
+  const visible = 0.55 + (i % 9) * 0.03
+  const bbox = Math.min(0.97, visible + 0.09)
+  const sharpness = 180 + ((i * 53) % 900)
+  const detail = 40 + (i % 7) * 1.5
+  const out: { [key: string]: Json } = {
+    visible: Math.round(visible * 1e4) / 1e4,
+    bbox: Math.round(bbox * 1e4) / 1e4,
+    fill: Math.round((visible / bbox) * 1e3) / 1e3,
+    measured: Math.round((visible - 0.2) * 1e4) / 1e4,
+    sharpness,
+    sharpness_rel: Math.round((sharpness / detail ** 2) * 1e4) / 1e4,
+    detail,
+    flat: false,
+  }
+  if (spec.recipe !== 'direct') Object.assign(out, { caption_box: [40, 400, 472, 488], caption_contrast: 8 + (i % 5) * 0.7 })
+  if (spec.kind === 'animated') Object.assign(out, { frames: 12, duration_ms: 1300, median_frame_ms: 100 })
+  Object.assign(out, spec.signals ?? {})
+  if (spec.signals?.sharpness !== undefined && spec.signals.sharpness_rel !== undefined) {
+    out.detail = Math.round(Math.sqrt(Number(spec.signals.sharpness) / Number(spec.signals.sharpness_rel)) * 10) / 10
+  }
+  const order = Object.keys(penalties).sort((a, b) => penalties[b] - penalties[a])
+  out.penalties = Object.fromEntries(order.map((r) => [r, penalties[r]]))
+  return out
+}
+
+/** Gate columns for one fixture: older stickers predate the gate; most others are clean (100). */
+function gateColumns(i: number, spec: StickerSpec): Pick<Sticker, 'quality_score' | 'quality_reasons' | 'quality_signals'> | null {
+  if (spec.at >= GATE_SHIPPED_HOURS_AGO) return null
+  const penalties: Record<string, number> = { ...spec.penalties }
+  if (!spec.penalties && i % 5 === 2) penalties.soft = 4 + (i % 9) // a few mildly soft ones for variety
+  if (!spec.penalties && i % 7 === 3) penalties.small_subject = 3 + (i % 6)
+  const local = Math.max(0, Math.min(100, Math.round(100 - Object.values(penalties).reduce((a, b) => a + b, 0))))
+  const reasons = Object.keys(penalties).sort((a, b) => penalties[b] - penalties[a])
+  return {
+    quality_score: spec.score ?? local,
+    quality_reasons: [...reasons, ...(spec.judged ?? []).map((issue) => `judge:${issue}`)],
+    quality_signals: gateSignals(i, spec, penalties),
+  }
+}
 
 interface ExtraSource {
   desc: string
@@ -187,6 +254,7 @@ export function seedDemoDb(opts: SeedOptions = {}): DemoDb {
     publish_policy: { value: structuredClone(DEFAULT_SETTINGS.publish_policy), updated_at: iso(when(72)) },
     budgets: { value: structuredClone(DEFAULT_SETTINGS.budgets), updated_at: iso(when(72)) },
     categories: { value: structuredClone(DEFAULT_SETTINGS.categories), updated_at: iso(when(72)) },
+    quality_gate: { value: structuredClone(DEFAULT_SETTINGS.quality_gate), updated_at: iso(when(30)) },
   }
   db.protectedPeople = [
     ['Amitabh Bachchan', 'Delhi HC 2022 order'], ['Anil Kapoor', 'Delhi HC 2023 order (incl. GIFs, jhakaas)'],
@@ -341,9 +409,12 @@ export function seedDemoDb(opts: SeedOptions = {}): DemoDb {
     }
     const sha = hex(rand, 64)
     const filePath = sourceObjectPath(sha, 'webp', created)
-    db.objects.set(`stickers/${filePath}`, stickerArt({ seed: 1000 + i, caption: spec.caption, emoji, hue, animated: spec.kind === 'animated' }))
+    db.objects.set(`stickers/${filePath}`, stickerArt({ seed: 1000 + i, caption: spec.caption, emoji, hue, animated: spec.kind === 'animated', flaw: spec.flaw }))
     const wasPublished = spec.status === 'published' || spec.status === 'taken_down'
     const publishedAt = wasPublished ? iso(new Date(Math.min(plus(created, 40).getTime(), now.getTime()))) : null
+    const gate = gateColumns(i, spec)
+    // The worker's review_note for a hold, e.g. quality_gate:55<60:blurry
+    const heldNote = gate && spec.status === 'held' ? `quality_gate:${gate.quality_score}<${GATE_MIN_SCORE}:${gate.quality_reasons.join('+')}` : null
     return {
       id: uuid(rand),
       source_id: source?.id ?? null,
@@ -365,11 +436,27 @@ export function seedDemoDb(opts: SeedOptions = {}): DemoDb {
       quality: spec.q,
       trend_id: null,
       status: spec.status,
-      review_note: spec.note ?? null,
+      review_note: spec.note ?? heldNote,
       published_at: publishedAt,
       created_at: iso(created),
       updated_at: iso(plus(created, 41)),
+      quality_score: gate?.quality_score ?? null,
+      quality_reasons: gate?.quality_reasons ?? [],
+      quality_signals: gate?.quality_signals ?? null,
+      render_phash: gate ? hex(rand, 16) : null,
     }
+  })
+  // near_duplicate: point at the sticker it repeats, with a render pHash 1 bit away from it.
+  STICKERS.forEach((spec, i) => {
+    if (!spec.dupOf) return
+    const original = stickers.find((s) => s.caption === spec.dupOf)
+    const copy = stickers[i]
+    if (!original?.render_phash || !copy.quality_signals || typeof copy.quality_signals !== 'object' || Array.isArray(copy.quality_signals)) {
+      throw new Error(`fixture: near-duplicate of "${spec.dupOf}" needs a scored original`)
+    }
+    const last = (parseInt(original.render_phash.slice(-1), 16) ^ 1).toString(16)
+    copy.render_phash = original.render_phash.slice(0, -1) + last
+    Object.assign(copy.quality_signals, { duplicate_of: original.id, duplicate_distance: 1 })
   })
   db.stickers = stickers
 

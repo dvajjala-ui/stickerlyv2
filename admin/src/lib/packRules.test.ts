@@ -57,6 +57,15 @@ describe('checkPack', () => {
     expect(codes(p, false)).toContain('warning:drafts')
   })
 
+  it('blocks publishing while a sticker is held by the quality gate; only warns when saving', () => {
+    const heldOne = st({ status: 'held' })
+    const p = pack([st(), st(), heldOne])
+    expect(codes(p)).toContain('error:held')
+    expect(codes(p, false)).toContain('warning:held')
+    expect(checkPack(p, { forPublish: true }).find((i) => i.code === 'held')?.stickerIds).toEqual([heldOne.id])
+    expect(codes(p)).not.toContain('error:drafts')
+  })
+
   it('always errors on rejected or taken-down stickers', () => {
     expect(codes(pack([st(), st(), st({ status: 'taken_down' })]), false)).toContain('error:dead')
   })

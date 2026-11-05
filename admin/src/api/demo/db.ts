@@ -69,6 +69,7 @@ export function emptyDemoDb(latencyMs = 0): DemoDb {
         updated_at: at,
       },
       categories: { value: { enabled: ['reactions', 'funny'] }, updated_at: at },
+      quality_gate: { value: { enabled: true, min_score: 60, vision_judge: false, judge_band: 20 }, updated_at: at },
     },
     protectedPeople: [],
     aiCalls: [],

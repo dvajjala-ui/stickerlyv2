@@ -1,16 +1,18 @@
 import { useMemo, useState } from 'react'
 import { Link } from 'react-router'
 import { api } from '../api'
-import { REPORT_REASONS, type Rating, type StickerFilter, type StickerKind, type StickerPatch, type StickerRow, type StickerSort, type StickerStatus } from '../api/types'
+import { REPORT_REASONS, type HeldDecision, type HeldReviewOutcome, type Rating, type StickerFilter, type StickerKind, type StickerPatch, type StickerRow, type StickerSort, type StickerStatus } from '../api/types'
 import { EmojiInput, ChipsInput } from '../components/ChipsInput'
 import { Drawer } from '../components/Drawer'
 import { Icon } from '../components/Icon'
 import { StickerImage } from '../components/Media'
+import { GateReasonsLine, GateScoreFlag, GateScorePill, HeldNote, QualitySection } from '../components/Quality'
 import { SearchBox } from '../components/SearchBox'
 import { Empty, ErrorNote, Field, IssueList, Kv, Pager, Pill, Segmented, Spinner, StatusPill, Toggle } from '../components/ui'
 import { checkEmojis } from '../lib/emoji'
-import { fmtBytes, fmtDateTime, safeHref, timeAgo } from '../lib/format'
+import { fmtBytes, fmtDateTime, plural, safeHref, timeAgo } from '../lib/format'
 import { useSelection, useUrlState } from '../lib/params'
+import { heldReviewReport, type ReviewNotice } from '../lib/quality'
 import { categoryOptions, useReference } from '../lib/reference'
 import { errorsOf, stickerIssues, waBadge, type StickerLike } from '../lib/stickerRules'
 import { useToast } from '../lib/toast'
@@ -19,6 +21,7 @@ import { toError, useAsync } from '../lib/useAsync'
 const PAGE = 60
 const TABS: { value: StickerStatus | 'all'; label: string }[] = [
   { value: 'draft', label: 'Drafts' },
+  { value: 'held', label: 'Held' },
   { value: 'published', label: 'Published' },
   { value: 'rejected', label: 'Rejected' },
   { value: 'taken_down', label: 'Taken down' },
@@ -48,9 +51,39 @@ function reasonsText(s: StickerLike, protectedNames: string[]): string[] {
   return errorsOf(stickerIssues(s, { protectedNames })).map((i) => i.message)
 }
 
+/** Confirm step in the selection bar before held stickers are approved or rejected. */
+function HeldConfirm({ decision, count, blocked, busy, onConfirm, onCancel }: {
+  decision: HeldDecision
+  count: number
+  /** Selected stickers that break a publish rule (approve skips them). */
+  blocked: number
+  busy: boolean
+  onConfirm: () => void
+  onCancel: () => void
+}) {
+  const they = count === 1 ? 'It' : 'They'
+  const text =
+    decision === 'approve'
+      ? `Approve ${plural(count, 'held sticker')}? ${they} go${count === 1 ? 'es' : ''} live on Discover now and the next compose run packs ${count === 1 ? 'it' : 'them'}.` +
+        (blocked ? ` ${blocked} ${blocked === 1 ? 'breaks' : 'break'} a publish rule and will be skipped.` : '')
+      : `Reject ${plural(count, 'held sticker')}? ${they} stay${count === 1 ? 's' : ''} stored, off Discover.`
+  return (
+    <>
+      <span className="bulk-confirm">{text}</span>
+      <button className={`btn btn-sm ${decision === 'approve' ? 'btn-volt' : 'btn-danger'}`} disabled={busy} onClick={onConfirm}>
+        {decision === 'approve' ? 'Approve' : 'Reject'} {count}
+      </button>
+      {/* Focus lands on the safe choice. */}
+      <button className="btn btn-sm" disabled={busy} onClick={onCancel} autoFocus>
+        Cancel
+      </button>
+    </>
+  )
+}
+
 // ------------------------------------------------------------------ editor drawer
 
-function StickerDrawer({ id, onClose, onChanged }: { id: string; onClose: () => void; onChanged: () => void }) {
+function StickerDrawer({ id, onClose, onChanged, onOpenSticker }: { id: string; onClose: () => void; onChanged: () => void; onOpenSticker: (id: string) => void }) {
   const toast = useToast()
   const ref = useReference()
   const [draft, setDraft] = useState<StickerPatch | null>(null)
@@ -89,6 +122,18 @@ function StickerDrawer({ id, onClose, onChanged }: { id: string; onClose: () => 
       if (dirty) await api.stickers.update(id, draft ?? {})
       await api.stickers.setStatus([id], 'published')
     })
+  // Held stickers go through the guarded review, so one changed elsewhere is never overwritten.
+  const review = (decision: HeldDecision) =>
+    run(decision === 'approve' ? 'Approved · live on Discover; the next compose run packs it' : 'Rejected', async () => {
+      if (dirty) await api.stickers.update(id, draft ?? {})
+      const out = await api.stickers.reviewHeld([id], decision)
+      if (out.failed.length) throw new Error(out.failed[0].message)
+      if (!out.done.length) {
+        reload()
+        onChanged()
+        throw new Error('No longer held (changed elsewhere), so its status was left as it is')
+      }
+    })
 
   const credit = s?.credit
   const creditHref = safeHref(credit?.url ?? s?.source?.page_url ?? s?.source?.source_url)
@@ -105,7 +150,22 @@ function StickerDrawer({ id, onClose, onChanged }: { id: string; onClose: () => 
             <button className="btn btn-primary" disabled={!dirty || busy || !emojiCheck.ok} onClick={() => void save()}>
               Save
             </button>
-            {s.status !== 'published' && (
+            {s.status === 'held' && (
+              <>
+                <button
+                  className="btn btn-volt"
+                  disabled={busy || errorsOf(issues).length > 0}
+                  onClick={() => void review('approve')}
+                  title={errorsOf(issues)[0]?.message ?? 'Publish it; the next compose run packs it'}
+                >
+                  Approve
+                </button>
+                <button className="btn btn-danger-outline" disabled={busy} onClick={() => void review('reject')}>
+                  Reject
+                </button>
+              </>
+            )}
+            {s.status !== 'published' && s.status !== 'held' && (
               <button className="btn btn-volt" disabled={busy || errorsOf(issues).length > 0} onClick={() => void publish()} title={errorsOf(issues)[0]?.message}>
                 Publish
               </button>
@@ -115,7 +175,7 @@ function StickerDrawer({ id, onClose, onChanged }: { id: string; onClose: () => 
                 Unpublish
               </button>
             )}
-            {s.status !== 'rejected' && (
+            {s.status !== 'rejected' && s.status !== 'held' && (
               <button className="btn btn-danger-outline" disabled={busy} onClick={() => void run('Rejected', () => api.stickers.setStatus([id], 'rejected'))}>
                 Reject
               </button>
@@ -145,6 +205,7 @@ function StickerDrawer({ id, onClose, onChanged }: { id: string; onClose: () => 
                 {s.ai_generated ? <Pill tone="volt">AI-generated</Pill> : <Pill>as found</Pill>}
                 <Pill>{s.recipe}</Pill>
                 {s.quality !== null && <Pill tone="ink">quality {s.quality}/10</Pill>}
+                <GateScorePill s={s} minScore={ref.minScore} />
               </div>
               <div className="muted small">
                 {fmtBytes(s.bytes)} · made {timeAgo(s.created_at)}
@@ -164,6 +225,7 @@ function StickerDrawer({ id, onClose, onChanged }: { id: string; onClose: () => 
             </div>
           </div>
 
+          {s.status === 'held' && <HeldNote s={s} minScore={ref.minScore} />}
           <IssueList issues={issues} empty={s.status === 'published' ? 'Live on Discover' : 'Ready to publish'} />
           {s.status === 'taken_down' && <div className="note note-danger">Taken down{s.review_note ? `: ${s.review_note}` : ''}. Editing is disabled.</div>}
 
@@ -206,6 +268,9 @@ function StickerDrawer({ id, onClose, onChanged }: { id: string; onClose: () => 
             </Field>
           </fieldset>
 
+          <h3>Quality gate</h3>
+          <QualitySection s={s} minScore={ref.minScore} onOpenSticker={onOpenSticker} />
+
           <h3>Credit</h3>
           <Kv
             rows={[
@@ -241,6 +306,7 @@ function StickerDrawer({ id, onClose, onChanged }: { id: string; onClose: () => 
             rows={[
               ['Path', <code key="path" className="hash">stickers/{s.file_path}</code>],
               ['SHA-256', <code key="sha" className="hash">{s.sha256}</code>],
+              ['Render pHash', s.render_phash ? <code key="rph" className="hash">{s.render_phash}</code> : null],
               ['Created', fmtDateTime(s.created_at)],
               ['Published', fmtDateTime(s.published_at)],
             ]}
@@ -259,7 +325,9 @@ export function Stickers() {
   const ref = useReference()
   const [busy, setBusy] = useState(false)
   const [takedownReason, setTakedownReason] = useState<string>('')
-  const [skipped, setSkipped] = useState<{ caption: string; reasons: string[] }[]>([])
+  const [notice, setNotice] = useState<ReviewNotice | null>(null)
+  // A pending approve/reject confirmation is tied to the exact selection it was asked for.
+  const [confirm, setConfirm] = useState<{ decision: HeldDecision; key: string } | null>(null)
 
   const tab = (get('status') as StickerStatus | 'all' | undefined) ?? 'draft'
   const filter: StickerFilter = useMemo(
@@ -280,6 +348,11 @@ export function Stickers() {
   const ids = useMemo(() => rows.map((r) => r.id), [rows])
   const sel = useSelection(ids)
   const selectedRows = rows.filter((r) => sel.selected.has(r.id))
+  const selKey = [...sel.selected].sort().join(',')
+  const confirming = tab === 'held' && confirm?.key === selKey ? confirm.decision : null
+  // Any change of selection (or tab) cancels a pending confirm for good, so it can't come back by itself.
+  if (confirm && !confirming) setConfirm(null)
+  const ruleBlocked = (r: StickerRow) => reasonsText(r, ref.protectedNames)
 
   const finish = (msg: string) => {
     toast(msg)
@@ -301,13 +374,28 @@ export function Stickers() {
       const ok: string[] = []
       const bad: { caption: string; reasons: string[] }[] = []
       for (const r of selectedRows) {
-        const reasons = reasonsText(r, ref.protectedNames)
+        const reasons = ruleBlocked(r)
         if (reasons.length) bad.push({ caption: r.caption ?? r.id.slice(0, 8), reasons })
         else ok.push(r.id)
       }
       if (ok.length) await api.stickers.setStatus(ok, 'published')
-      setSkipped(bad)
+      setNotice(bad.length ? { title: `Not published (${bad.length})`, items: bad } : null)
       finish(`Published ${ok.length}${bad.length ? ` · skipped ${bad.length} (see list)` : ''}`)
+    })
+  /** Held tab: approve (publish) or reject the selection, after the confirm step. */
+  const reviewSelected = (decision: HeldDecision) =>
+    bulk(async () => {
+      const picked = selectedRows
+      // Approving publishes, so the panel's publish rules apply; those stickers are never sent.
+      const blocked = decision === 'approve' ? picked.map((r) => ({ id: r.id, reasons: ruleBlocked(r) })).filter((b) => b.reasons.length) : []
+      const send = picked.filter((r) => !blocked.some((b) => b.id === r.id)).map((r) => r.id)
+      const outcome: HeldReviewOutcome = send.length ? await api.stickers.reviewHeld(send, decision) : { done: [], notHeld: [], failed: [] }
+      const report = heldReviewReport(decision, picked, blocked, outcome)
+      setConfirm(null)
+      setNotice(report.notice)
+      toast(report.message, report.tone)
+      sel.clear()
+      list.reload()
     })
   const setSelected = (status: 'rejected' | 'draft') =>
     bulk(async () => {
@@ -375,6 +463,7 @@ export function Stickers() {
             <option value="created">newest</option>
             <option value="published">recently published</option>
             <option value="quality">quality</option>
+            <option value="score">gate score (lowest first)</option>
             <option value="size">file size</option>
           </select>
         </label>
@@ -385,16 +474,23 @@ export function Stickers() {
         )}
       </div>
 
-      {skipped.length > 0 && (
-        <div className="note note-warn note-block">
+      {tab === 'held' && (
+        <p className="muted small">
+          The content policy would publish these, but the worker's quality gate scored them below the minimum ({ref.minScore}/100,
+          see <Link to="/settings">Settings</Link>). Approve publishes them and the next compose run packs them; Reject keeps them
+          off Discover. Hard problems (tiny subject, unreadable caption, near-duplicate…) cap the score at 35.
+        </p>
+      )}
+      {notice && (
+        <div className="note note-warn note-block" role="status">
           <div className="row-between">
-            <strong>Not published ({skipped.length})</strong>
-            <button className="btn-link" onClick={() => setSkipped([])}>
+            <strong>{notice.title}</strong>
+            <button className="btn-link" onClick={() => setNotice(null)}>
               dismiss
             </button>
           </div>
           <ul>
-            {skipped.map((s, i) => (
+            {notice.items.map((s, i) => (
               <li key={i}>
                 <strong>{s.caption}</strong>: {s.reasons.join('; ')}
               </li>
@@ -403,12 +499,17 @@ export function Stickers() {
         </div>
       )}
       {list.error && <ErrorNote error={list.error} onRetry={list.reload} />}
-      {list.data && rows.length === 0 && <Empty title="No stickers here">{tab === 'draft' ? 'The review queue is empty.' : 'Try another tab or filter.'}</Empty>}
+      {list.data && rows.length === 0 && (
+        <Empty title={tab === 'held' ? 'Nothing held' : 'No stickers here'}>
+          {tab === 'draft' ? 'The review queue is empty.' : tab === 'held' ? 'Stickers the quality gate scores below the minimum wait here.' : 'Try another tab or filter.'}
+        </Empty>
+      )}
 
       <div className="tiles tiles-stickers">
         {rows.map((r) => {
           const selected = sel.selected.has(r.id)
-          const blocked = r.status === 'draft' && reasonsText(r, ref.protectedNames).length > 0
+          const blocked = (r.status === 'draft' || r.status === 'held') && ruleBlocked(r).length > 0
+          const showReasons = r.status === 'held' || (r.quality_score !== null && r.quality_score < ref.minScore)
           return (
             <article key={r.id} className={`tile ${selected ? 'is-selected' : ''}`}>
               <div className="tile-media">
@@ -438,13 +539,15 @@ export function Stickers() {
                 </div>
                 <div className="tile-flags">
                   <WaBadge s={r} />
+                  <GateScoreFlag s={r} minScore={ref.minScore} />
                   {r.ai_generated && <span title="AI-generated label">AI</span>}
                   {blocked && (
-                    <span className="flag-danger" title={reasonsText(r, ref.protectedNames).join('\n')}>
+                    <span className="flag-danger" title={ruleBlocked(r).join('\n')}>
                       blocked
                     </span>
                   )}
                 </div>
+                {showReasons && <GateReasonsLine reasons={r.quality_reasons} />}
               </div>
             </article>
           )
@@ -462,27 +565,53 @@ export function Stickers() {
             All on page
           </button>
           <div className="spacer" />
-          <button className="btn btn-sm btn-volt" disabled={busy} onClick={() => void publishSelected()}>
-            Publish
-          </button>
-          <button className="btn btn-sm" disabled={busy} onClick={() => void setSelected('draft')}>
-            To draft
-          </button>
-          <button className="btn btn-sm btn-danger-outline" disabled={busy} onClick={() => void setSelected('rejected')}>
-            Reject
-          </button>
-          <select className="select select-sm" value={takedownReason} onChange={(e) => setTakedownReason(e.target.value)} aria-label="Takedown reason">
-            <option value="">Take down…</option>
-            {REPORT_REASONS.map((r) => (
-              <option key={r} value={r}>
-                reason: {r}
-              </option>
-            ))}
-          </select>
-          {takedownReason && (
-            <button className="btn btn-sm btn-danger" disabled={busy} onClick={() => void takeDownSelected()}>
-              Take down {sel.count}
-            </button>
+          {confirming ? (
+            <HeldConfirm
+              decision={confirming}
+              count={sel.count}
+              blocked={confirming === 'approve' ? selectedRows.filter((r) => ruleBlocked(r).length > 0).length : 0}
+              busy={busy}
+              onConfirm={() => void reviewSelected(confirming)}
+              onCancel={() => setConfirm(null)}
+            />
+          ) : (
+            <>
+              {tab === 'held' ? (
+                <>
+                  <button className="btn btn-sm btn-volt" disabled={busy} onClick={() => setConfirm({ decision: 'approve', key: selKey })}>
+                    Approve selected
+                  </button>
+                  <button className="btn btn-sm btn-danger-outline" disabled={busy} onClick={() => setConfirm({ decision: 'reject', key: selKey })}>
+                    Reject selected
+                  </button>
+                </>
+              ) : (
+                <>
+                  <button className="btn btn-sm btn-volt" disabled={busy} onClick={() => void publishSelected()}>
+                    Publish
+                  </button>
+                  <button className="btn btn-sm" disabled={busy} onClick={() => void setSelected('draft')}>
+                    To draft
+                  </button>
+                  <button className="btn btn-sm btn-danger-outline" disabled={busy} onClick={() => void setSelected('rejected')}>
+                    Reject
+                  </button>
+                </>
+              )}
+              <select className="select select-sm" value={takedownReason} onChange={(e) => setTakedownReason(e.target.value)} aria-label="Takedown reason">
+                <option value="">Take down…</option>
+                {REPORT_REASONS.map((r) => (
+                  <option key={r} value={r}>
+                    reason: {r}
+                  </option>
+                ))}
+              </select>
+              {takedownReason && (
+                <button className="btn btn-sm btn-danger" disabled={busy} onClick={() => void takeDownSelected()}>
+                  Take down {sel.count}
+                </button>
+              )}
+            </>
           )}
           <button className="btn-icon" onClick={sel.clear} aria-label="Clear selection">
             <Icon name="x" />
@@ -490,7 +619,7 @@ export function Stickers() {
         </div>
       )}
 
-      {openId && <StickerDrawer id={openId} onClose={() => set({ id: null })} onChanged={list.reload} />}
+      {openId && <StickerDrawer id={openId} onClose={() => set({ id: null })} onChanged={list.reload} onOpenSticker={(other) => set({ id: other })} />}
     </div>
   )
 }

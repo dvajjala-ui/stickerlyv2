@@ -1,10 +1,12 @@
 import { useState, type FormEvent, type ReactNode } from 'react'
 import { api } from '../api'
-import { DEFAULT_SETTINGS, type Budgets, type CategoriesSetting, type Iso, type ProtectedPerson, type PublishPolicy, type SettingKey, type SettingValues, type SettingsBundle } from '../api/types'
+import { Link } from 'react-router'
+import { DEFAULT_SETTINGS, type Budgets, type CategoriesSetting, type Iso, type ProtectedPerson, type PublishPolicy, type QualityGate, type SettingKey, type SettingValues, type SettingsBundle } from '../api/types'
 import { ChipsInput } from '../components/ChipsInput'
 import { Icon } from '../components/Icon'
 import { ErrorNote, Field, Segmented, Spinner, Toggle } from '../components/ui'
 import { fmtDateTime } from '../lib/format'
+import { judgeRange, qualityGateError } from '../lib/quality'
 import { invalidateReference } from '../lib/reference'
 import { useToast } from '../lib/toast'
 import { toError, useAsync } from '../lib/useAsync'
@@ -91,6 +93,70 @@ function PolicyCard({ s }: { s: SettingsBundle }) {
       </Field>
       <Field label="Always review stickers from these sites">
         <ChipsInput value={v.require_review_sites} onChange={(require_review_sites) => set({ require_review_sites })} placeholder="pinterest, imgflip…" />
+      </Field>
+    </Card>
+  )
+}
+
+/** A 0–100 input (inside a Field label) that keeps an empty entry as NaN, so validation catches it. */
+function ScoreInput({ value, onChange }: { value: number; onChange: (v: number) => void }) {
+  return (
+    <input
+      className="input input-num"
+      type="number"
+      min={0}
+      max={100}
+      step={1}
+      inputMode="numeric"
+      value={Number.isFinite(value) ? value : ''}
+      onChange={(e) => onChange(e.target.value.trim() === '' ? Number.NaN : Number(e.target.value))}
+    />
+  )
+}
+
+function QualityGateCard({ s }: { s: SettingsBundle }) {
+  const sec = useSection('quality_gate', s.quality_gate, s.updated_at.quality_gate)
+  const v = sec.value
+  const set = (patch: Partial<QualityGate>) => sec.setValue({ ...v, ...patch })
+  const range = judgeRange(v)
+  return (
+    <Card
+      title="Quality gate"
+      sub={
+        <>
+          The worker scores every sticker it makes from 0 to 100 (blur, tiny subject, caption contrast, near-duplicates, animation
+          timing). One the publish policy would publish but that scores below the minimum is held for review in{' '}
+          <Link to="/stickers?status=held">Stickers → Held</Link>.
+        </>
+      }
+      at={sec.at}
+      dirty={sec.dirty}
+      busy={sec.busy}
+      onSave={() => void sec.save()}
+      onReset={sec.reset}
+      invalid={qualityGateError(v)}
+    >
+      <Toggle checked={v.enabled} onChange={(enabled) => set({ enabled })} label="Hold stickers that score below the minimum" />
+      {!v.enabled && <p className="muted small">Off: scores are still recorded, but nothing is held and the vision judge never runs.</p>}
+      <Field label="Minimum score (0–100)" hint="Below this a sticker is held instead of published. Default 60; hard problems cap a score at 35.">
+        <ScoreInput value={v.min_score} onChange={(min_score) => set({ min_score })} />
+      </Field>
+      <Toggle checked={v.vision_judge} onChange={(vision_judge) => set({ vision_judge })} label="Ask the vision judge about borderline stickers" />
+      <p className={v.vision_judge ? 'note note-warn' : 'muted small'}>
+        Spends the daily Groq vision budget: one image per judged sticker, shared with source analysis (
+        {s.budgets.vision_per_day} images a day under Daily budgets). Keep it off on the free tier.
+      </p>
+      <Field
+        label="Judge band (0–100)"
+        hint={
+          v.judge_band === 0
+            ? 'Band 0: the judge never runs.'
+            : range
+              ? `With the judge on, it sees stickers scoring ${range[0]}–${range[1]} without a hard problem (a band of 100 covers all of them).`
+              : 'Stickers scoring within this many points of the minimum, without a hard problem, go to the judge.'
+        }
+      >
+        <ScoreInput value={v.judge_band} onChange={(judge_band) => set({ judge_band })} />
       </Field>
     </Card>
   )
@@ -249,6 +315,7 @@ export function Settings() {
       {loaded.data && (
         <div className="settings-grid">
           <PolicyCard s={loaded.data[0]} />
+          <QualityGateCard s={loaded.data[0]} />
           <BudgetsCard s={loaded.data[0]} />
           <CategoriesCard s={loaded.data[0]} />
           <ProtectedCard initial={loaded.data[1]} />

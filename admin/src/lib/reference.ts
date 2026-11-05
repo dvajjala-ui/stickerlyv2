@@ -1,13 +1,16 @@
-// Reference data most pages need (enabled categories, protected people), loaded once and
-// refreshed when Settings saves.
+// Reference data most pages need (enabled categories, protected people, the quality gate's
+// minimum), loaded once and refreshed when Settings saves.
 
 import { api } from '../api'
 import { DEFAULT_SETTINGS } from '../api/types'
+import { effectiveQualityGate } from './quality'
 import { useAsync } from './useAsync'
 
 export interface Reference {
   categories: string[]
   protectedNames: string[]
+  /** settings.quality_gate.min_score as the worker applies it. */
+  minScore: number
 }
 
 let cache: Promise<Reference> | null = null
@@ -17,6 +20,7 @@ export function loadReference(): Promise<Reference> {
     cache = Promise.all([api.settings.load(), api.protectedPeople.list()]).then(([s, people]) => ({
       categories: s.categories.enabled,
       protectedNames: people.map((p) => p.name),
+      minScore: effectiveQualityGate(s.quality_gate).min_score,
     }))
     cache.catch(() => {
       cache = null
@@ -29,7 +33,11 @@ export function invalidateReference(): void {
   cache = null
 }
 
-export const FALLBACK_REFERENCE: Reference = { categories: DEFAULT_SETTINGS.categories.enabled, protectedNames: [] }
+export const FALLBACK_REFERENCE: Reference = {
+  categories: DEFAULT_SETTINGS.categories.enabled,
+  protectedNames: [],
+  minScore: DEFAULT_SETTINGS.quality_gate.min_score,
+}
 
 export function useReference(): Reference & { ready: boolean } {
   const { data } = useAsync(loadReference, [])

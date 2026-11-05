@@ -22,6 +22,7 @@ const STATUS_TONE: Record<string, Tone> = {
   failed: 'danger',
   taken_down: 'danger',
   draft: 'warn',
+  held: 'warn',
   published: 'ok',
   archived: 'neutral',
   open: 'danger',

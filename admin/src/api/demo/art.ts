@@ -58,13 +58,19 @@ function blobPath(seed: number, cx: number, cy: number, r: number, points = 9, w
 const EMOJI_FONT = "'Segoe UI Emoji','Apple Color Emoji','Noto Color Emoji',sans-serif"
 const CAPTION_FONT = "'Arial Black','Segoe UI Black',Impact,system-ui,sans-serif"
 
+/** Visible defects for held demo stickers, so the Held tab shows what each quality reason looks like. */
+export type ArtFlaw = 'blurry' | 'tiny' | 'low_contrast'
+
 /** 512×512 die-cut sticker with an emoji "character" and a Hinglish caption. */
-export function stickerArt(o: { seed: number; caption: string; emoji: string; hue: number; animated: boolean }): string {
+export function stickerArt(o: { seed: number; caption: string; emoji: string; hue: number; animated: boolean; flaw?: ArtFlaw }): string {
   const lines = wrap(o.caption, 15)
   const fs = lines.length > 2 ? 40 : lines.length === 2 ? 46 : 54
   const shape = blobPath(o.seed, 256, 226, 176)
   const firstY = 418 - (lines.length - 1) * fs * 0.52
   const tspans = lines.map((l, i) => `<tspan x="256" y="${(firstY + i * fs * 1.04).toFixed(0)}">${esc(l)}</tspan>`).join('')
+  const filter = o.flaw === 'blurry' ? '<filter id="f"><feGaussianBlur stdDeviation="7"/></filter>' : ''
+  const body = o.flaw === 'blurry' ? ' filter="url(#f)"' : o.flaw === 'tiny' ? ' transform="translate(196 196) scale(0.235)"' : ''
+  const [textFill, textStroke] = o.flaw === 'low_contrast' ? ['#cfd3c8', '#e9ebe4'] : ['#12130F', '#fff']
   const wiggle = o.animated
     ? '<animateTransform attributeName="transform" type="rotate" values="-6 256 256;6 256 256;-6 256 256" dur="1.3s" repeatCount="indefinite"/>'
     : ''
@@ -74,14 +80,14 @@ export function stickerArt(o: { seed: number; caption: string; emoji: string; hu
   return svgUrl(`<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
     <defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
       <stop offset="0" stop-color="hsl(${o.hue} 82% 66%)"/><stop offset="1" stop-color="hsl(${(o.hue + 38) % 360} 86% 54%)"/>
-    </linearGradient></defs>
-    <g>${wiggle}
+    </linearGradient>${filter}</defs>
+    <g${body}><g>${wiggle}
       <path d="${shape}" fill="#fff" stroke="#fff" stroke-width="30" stroke-linejoin="round"/>
       <path d="${shape}" fill="url(#g)"/>
       <g>${bob}<text x="256" y="212" font-size="168" text-anchor="middle" dominant-baseline="central" font-family="${EMOJI_FONT}">${esc(o.emoji)}</text></g>
-      <text font-size="${fs}" font-weight="900" text-anchor="middle" fill="#12130F" stroke="#fff" stroke-width="11"
+      <text font-size="${fs}" font-weight="900" text-anchor="middle" fill="${textFill}" stroke="${textStroke}" stroke-width="11"
         stroke-linejoin="round" paint-order="stroke" font-family="${CAPTION_FONT}">${tspans}</text>
-    </g></svg>`)
+    </g></g></svg>`)
 }
 
 /** A "collected photo / meme" stand-in: gradient scene, subject emoji, optional top/bottom meme text. */
