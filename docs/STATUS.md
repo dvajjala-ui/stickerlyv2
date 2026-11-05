@@ -66,6 +66,14 @@ All checks below ran over adb with debug-only command hooks; no WhatsApp UI was 
   the background ANR timeout and Android killed it. Real imports run from foreground screens / foreground jobs;
   debug hooks now release the broadcast immediately and run with the showcase screen in front.
 
+## 2026-11-05 (later) — without the phone (it dropped off USB at 07:59)
+- `:shared:jvmTest` 35/35: CoreTest 13, LibraryTest 14 (new: sort orders; duplicate merge keeps pack positions,
+  moves covers, sums use, unions words, reports packs under 3, undo restores all; never merges 18+ with general or
+  different animations), FeedPagerTest 6, UiSnapshotTest 2.
+- Headless UI snapshots (Compose Desktop): library, packs, pack, WhatsApp shelf "12 of 10", Discover paging through
+  3 pages to the end footer against the dev server, sort menu, Settings, Duplicates (merge + undo snackbar).
+- `:androidApp:assembleDebug` builds with the duplicate finder's Android hashing hook; not yet run on the phone.
+
 ## 2026-11-05 — tests (re-run by the lead, not only by the agents)
 - Admin: `npm test` 76/76 pass; `npm run build` ok.
 - Worker: `pytest` 158/158 pass (108 s). Ruff not installed in that venv (agent reported clean).

@@ -88,4 +88,9 @@ interface HostActions {
     fun openKeyboardTest()
     fun showMessage(text: String)
     fun diagnostics(): String
+    /**
+     * Gives stickers saved before perceptual hashing existed a hash (decoding needs platform codecs), so the
+     * duplicate finder sees them. Blocking; call off the main thread. Returns how many were hashed.
+     */
+    fun backfillHashes(): Int = 0
 }

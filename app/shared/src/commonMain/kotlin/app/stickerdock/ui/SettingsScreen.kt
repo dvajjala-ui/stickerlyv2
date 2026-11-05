@@ -37,7 +37,7 @@ import androidx.compose.ui.unit.dp
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun SettingsScreen(app: AppModel, onBack: () -> Unit) {
+fun SettingsScreen(app: AppModel, onBack: () -> Unit, onOpenDuplicates: () -> Unit = {}) {
     val host = app.host
     var askAge by remember { mutableStateOf(false) }
     var askVault by remember { mutableStateOf(false) }
@@ -57,6 +57,14 @@ fun SettingsScreen(app: AppModel, onBack: () -> Unit) {
                     SettingRow("Private vault", "Show vault stickers. Vault packs never sync or appear in Discover.", app.vaultOpen) { on ->
                         if (on) askVault = true else app.vaultOpen = false
                     }
+                }
+            }
+            Card(Modifier.fillMaxWidth()) {
+                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text("Clean up", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                    Text("Find near-identical stickers (the same picture saved twice, from both WhatsApps or old imports) " +
+                        "and merge them without losing pack places.", style = MaterialTheme.typography.bodySmall)
+                    TextButton(onOpenDuplicates) { Text("Find duplicates") }
                 }
             }
             Card(Modifier.fillMaxWidth()) {

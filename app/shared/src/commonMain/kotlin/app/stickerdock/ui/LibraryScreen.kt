@@ -21,11 +21,15 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.ArrowDropDown
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.BottomAppBar
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExtendedFloatingActionButton
@@ -58,10 +62,12 @@ import androidx.compose.ui.unit.dp
 import app.stickerdock.core.StickerKind
 import app.stickerdock.library.StickerFilter
 import app.stickerdock.library.StickerItem
+import app.stickerdock.library.StickerSort
 import kotlinx.coroutines.CoroutineScope
 
 private enum class LibraryMode { STICKERS, PACKS }
 private const val PAGE = 300
+private const val KEY_SORT = "library_sort"
 private enum class KindFilter(val label: String) { ALL("All"), STATIC("Static"), ANIMATED("Animated"), FAVORITES("★ Favorites") }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -81,8 +87,11 @@ fun LibraryScreen(app: AppModel, modifier: Modifier, onOpenPack: (String) -> Uni
     val whatsApp by host.whatsApp.collectAsState()
     var dismissedImport by remember { mutableStateOf<String?>(null) }
 
+    var sort by remember { mutableStateOf(StickerSort.entries.firstOrNull { it.name == host.prefs.getString(KEY_SORT) } ?: StickerSort.NEWEST) }
+    var sortMenu by remember { mutableStateOf(false) }
+
     // Infinite scroll: the query limit grows by a page when the grid nears its end.
-    var pages by remember(query, kindFilter, app.adultEnabled, app.vaultOpen) { mutableStateOf(1) }
+    var pages by remember(query, kindFilter, sort, app.adultEnabled, app.vaultOpen) { mutableStateOf(1) }
     val filter = StickerFilter(
         query = query,
         kind = when (kindFilter) { KindFilter.STATIC -> StickerKind.STATIC; KindFilter.ANIMATED -> StickerKind.ANIMATED; else -> null },
@@ -90,6 +99,7 @@ fun LibraryScreen(app: AppModel, modifier: Modifier, onOpenPack: (String) -> Uni
         includeAdult = app.adultEnabled,
         vault = app.vaultOpen,
         limit = PAGE * pages,
+        sort = sort,
     )
     val stickers by remember(filter) { library.stickersFlow(filter) }.collectAsState(emptyList())
     val gridState = rememberLazyGridState()
@@ -131,6 +141,20 @@ fun LibraryScreen(app: AppModel, modifier: Modifier, onOpenPack: (String) -> Uni
             Row(Modifier.fillMaxWidth().padding(start = 16.dp, end = 4.dp, top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
                 Text(if (app.vaultOpen) "Private vault" else "My stickers", style = MaterialTheme.typography.headlineSmall,
                     fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
+                // Search results keep relevance order, so sorting only shows while browsing stickers.
+                if (mode == LibraryMode.STICKERS && query.isBlank()) Box {
+                    TextButton({ sortMenu = true }) {
+                        Text(sort.label)
+                        Icon(Icons.Filled.ArrowDropDown, "Sort stickers")
+                    }
+                    DropdownMenu(sortMenu, { sortMenu = false }) {
+                        StickerSort.entries.forEach { option ->
+                            DropdownMenuItem({ Text(option.label) }, {
+                                sort = option; host.prefs.putString(KEY_SORT, option.name); sortMenu = false
+                            }, trailingIcon = { if (option == sort) Icon(Icons.Filled.Check, null) })
+                        }
+                    }
+                }
                 IconButton(onOpenSettings) { Icon(Icons.Filled.Settings, "Settings") }
             }
             OutlinedTextField(

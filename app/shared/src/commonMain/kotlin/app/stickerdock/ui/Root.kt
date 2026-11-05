@@ -39,6 +39,7 @@ import kotlinx.serialization.Serializable
 @Serializable object HomeRoute
 @Serializable data class PackRoute(val id: String)
 @Serializable object SettingsRoute
+@Serializable object DuplicatesRoute
 
 /** UI-wide state and services. */
 class AppModel(val host: HostActions, val library: Library, val discover: DiscoverClient) {
@@ -81,7 +82,10 @@ fun StickerDockRoot(host: HostActions, library: Library, discover: DiscoverClien
                 composable<PackRoute> { entry ->
                     PackScreen(app, entry.toRoute<PackRoute>().id, onBack = { nav.popBackStack() })
                 }
-                composable<SettingsRoute> { SettingsScreen(app, onBack = { nav.popBackStack() }) }
+                composable<SettingsRoute> {
+                    SettingsScreen(app, onBack = { nav.popBackStack() }, onOpenDuplicates = { nav.navigate(DuplicatesRoute) })
+                }
+                composable<DuplicatesRoute> { DuplicatesScreen(app, onBack = { nav.popBackStack() }) }
             }
         }
     }

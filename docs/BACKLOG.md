@@ -18,7 +18,8 @@
 8b. Smoother converted animations: long Lottie `.was` stickers come out at ~5 fps (30 frames × 198 ms) to fit
    500 KB. Encode frames 2+ as changed-rectangle ANMF deltas (blend off, even offsets) so the same budget holds
    2–3× more frames; keep full frames when most pixels change (e.g. background colour swaps).
-9. Find & merge duplicates already in the library (stickers imported before dHash existed).
+9. ~~Find & merge duplicates already in the library~~ — DONE: Settings → Find duplicates (hashes older stickers
+   first); keeper takes the copies' pack places, covers, favourite and words; undo; warns when a pack drops below 3.
 10. Import progress UI for the companion path; SAF picker flow check on device (A2 UI, A3 process death).
 11. Pagination for libraries > 2,000 stickers (current grid loads up to 600 per query).
 

@@ -9,6 +9,7 @@ import app.stickerdock.library.Library
 import app.stickerdock.library.Origin
 import app.stickerdock.library.StickerFiles
 import app.stickerdock.library.StickerFilter
+import app.stickerdock.library.StickerSort
 import java.util.Properties
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
@@ -163,6 +164,71 @@ class LibraryTest {
         assertEquals(listOf(b), lib.stickers(StickerFilter(query = "result")).map { it.id })
         assertEquals(listOf(a), lib.stickers(StickerFilter(query = "desi mom")).map { it.id })
         assertTrue(lib.stickers(StickerFilter(query = "100%")).isEmpty())
+    }
+
+    @Test fun sortsByUseNameAndAge() {
+        val a = addStatic(1, label = "zebra"); val b = addStatic(2, label = "Apple"); val c = addStatic(3, label = "")
+        repeat(3) { lib.markUsed(b) }; lib.markUsed(c)
+        fun order(sort: StickerSort) = lib.stickers(StickerFilter(sort = sort)).map { it.id }
+        assertEquals(listOf(c, b, a), order(StickerSort.NEWEST))
+        assertEquals(listOf(a, b, c), order(StickerSort.OLDEST))
+        assertEquals(listOf(b, a, c), order(StickerSort.NAME), "A–Z ignores case; unnamed stickers last")
+        assertEquals(b, order(StickerSort.USED).first())
+    }
+
+    @Test fun findsAndMergesNearDuplicatesWithUndo() {
+        // Stickers imported before hashes existed: same picture saved three times, plus one different picture.
+        val keep = addStatic(1, label = "Chai time"); val copy1 = addStatic(2); val copy2 = addStatic(3, label = "chai")
+        val other = addStatic(4)
+        lib.setHash(keep, 0b1011L); lib.setHash(copy1, 0b1111L); lib.setHash(copy2, 0b1010L); lib.setHash(other, -1L)
+        lib.updateMeta(copy1, "", "morning tea", "☕")
+        lib.setFavorite(copy2, true)
+        repeat(2) { lib.markUsed(copy1) }
+        val packA = lib.createPack("A", StickerKind.STATIC)
+        lib.addToPack(packA, listOf(other, copy1, keep))       // copy1 and keep are both here
+        val packB = lib.createPack("B", StickerKind.STATIC)
+        val fillers = (10..12).map { addStatic(it) }
+        lib.addToPack(packB, listOf(copy2) + fillers)          // copy2 is the cover of B
+
+        val groups = lib.findDuplicates()
+        assertEquals(1, groups.size)
+        val group = groups.single()
+        assertEquals(setOf(keep, copy1, copy2), (listOf(group.keeper) + group.others).map { it.id }.toSet())
+        assertTrue(other !in group.others.map { it.id })
+
+        // copy1 is the suggested keeper (most used); the user picks "keep" instead.
+        assertEquals(copy1, group.keeper.id)
+        val result = lib.mergeDuplicates(keep, listOf(copy1, copy2))
+        assertEquals(setOf(copy1, copy2), result.removed.toSet())
+        assertEquals(listOf(packB), result.addedTo, "keep was already in A; it takes copy2's place in B")
+        assertEquals(listOf(fillers[0], fillers[1], fillers[2], keep).toSet(), lib.packStickers(packB).map { it.id }.toSet())
+        assertEquals(keep, lib.packStickers(packB).first().id, "same position as the copy it replaced")
+        assertEquals(keep, lib.pack(packB)!!.trayStickerId)
+        assertEquals(listOf(packA), result.thinPacks, "A had other+copy1+keep; now 2 stickers")
+        val merged = lib.sticker(keep)!!
+        assertTrue(merged.favorite)
+        assertEquals("Chai time", merged.label)
+        assertTrue("morning" in merged.tags && "tea" in merged.tags)
+        assertEquals("☕", merged.emojis)
+        assertTrue(lib.findDuplicates().isEmpty())
+
+        lib.undoMerge(result)
+        assertEquals(setOf(copy2) + fillers, lib.packStickers(packB).map { it.id }.toSet())
+        assertEquals(copy2, lib.pack(packB)!!.trayStickerId)
+        assertEquals(3, lib.packStickers(packA).size)
+        assertFalse(lib.sticker(keep)!!.favorite)
+        assertEquals(1, lib.findDuplicates().size)
+    }
+
+    @Test fun duplicatesNeedSameRatingAndAnimationShape() {
+        val g = addStatic(1); val adult = addStatic(2, rating = Rating.ADULT)
+        lib.setHash(g, 7L); lib.setHash(adult, 7L)
+        assertTrue(lib.findDuplicates().isEmpty(), "never merge a general sticker with an 18+ one")
+        val a1 = (lib.addSticker(TestWebp.animated(frames = 3), Origin.IMPORT) as AddResult.Added).id
+        val a2 = (lib.addSticker(TestWebp.animated(frames = 5), Origin.IMPORT) as AddResult.Added).id
+        lib.setHash(a1, 9L); lib.setHash(a2, 9L)
+        assertTrue(lib.findDuplicates().isEmpty(), "same first frame, different animation")
+        assertTrue(lib.missingHashes().isEmpty())
     }
 
     @Test fun deletingPackKeepsStickersAndPurgeRemovesFiles() {

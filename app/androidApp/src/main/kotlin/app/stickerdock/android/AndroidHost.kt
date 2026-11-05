@@ -247,6 +247,17 @@ class AndroidHost(private val activity: ComponentActivity, private val graph: Ap
 
     override fun showMessage(text: String) = Toast.makeText(activity, text, Toast.LENGTH_LONG).show()
 
+    override fun backfillHashes(): Int {
+        val library = graph.library
+        var hashed = 0
+        library.missingHashes(limit = 20_000).forEach { id ->
+            val bytes = library.files.read(id) ?: return@forEach
+            app.stickerdock.android.media.StickerNormalizer.dhash(bytes)?.let { library.setHash(id, it); hashed++ }
+        }
+        if (hashed > 0) graph.events.record("library", "hashed $hashed older stickers for the duplicate finder")
+        return hashed
+    }
+
     override fun diagnostics(): String = buildString {
         val state = _whatsApp.value
         appendLine("StickerDock ${BuildConfig.VERSION_NAME} (${activity.packageName})")

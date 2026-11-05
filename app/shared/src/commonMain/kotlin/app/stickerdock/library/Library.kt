@@ -79,6 +79,9 @@ sealed interface AddResult {
 
 data class PackAddResult(val added: List<String>, val skipped: Map<String, String>)
 
+/** Library grid order. Search results keep their own relevance order. */
+enum class StickerSort(val label: String) { NEWEST("Newest"), USED("Most used"), OLDEST("Oldest"), NAME("A–Z") }
+
 data class StickerFilter(
     val query: String = "",
     val kind: StickerKind? = null,
@@ -86,7 +89,27 @@ data class StickerFilter(
     val includeAdult: Boolean = false,
     val vault: Boolean = false,
     val limit: Int = 600,
+    val sort: StickerSort = StickerSort.NEWEST,
 )
+
+/** Near-identical stickers; [keeper] is the one to keep (in most packs, then most used, favourite, oldest). */
+data class DuplicateGroup(val keeper: StickerItem, val others: List<StickerItem>)
+
+/** What [Library.mergeDuplicates] changed, so [Library.undoMerge] can put it back. */
+data class MergeResult(
+    val keeperId: String,
+    val removed: List<String>,
+    /** Packs the keeper joined in place of a removed copy. */
+    val addedTo: List<String>,
+    /** Packs that now hold fewer than 3 stickers (two copies were in the same pack), so WhatsApp hides them. */
+    val thinPacks: List<String>,
+    /** Pack id → the copy that was its cover. */
+    val trayMoves: Map<String, String>,
+    /** The keeper as it was, for undo. */
+    val before: KeeperState,
+) {
+    data class KeeperState(val useCount: Long, val favorite: Boolean, val lastUsed: Long?, val label: String, val tags: String, val emojis: String)
+}
 
 class Library(
     private val db: StickerDatabase,
@@ -404,6 +427,107 @@ class Library(
         notify(listOf(packId))
     }
 
+    // ---------------- duplicates ----------------
+
+    /** Stickers saved before perceptual hashes existed; the platform hashes them with [setHash]. */
+    fun missingHashes(limit: Int = 200): List<String> = q.stickersMissingHash(limit.toLong()).executeAsList()
+
+    fun setHash(id: String, dhash: Long) {
+        q.setStickerHash(dhash, id)
+        staticHashes = null; animatedHashes = null // reload the near-duplicate index with the new hash
+    }
+
+    /**
+     * Groups of near-identical stickers (same kind and rating; animations must also match in frames and duration).
+     * Only stickers with a hash take part. Biggest groups first.
+     */
+    fun findDuplicates(includeAdult: Boolean = true, vault: Boolean = false): List<DuplicateGroup> {
+        val rows = q.stickerFingerprints(vault, if (includeAdult) 1L else 0L).executeAsList()
+        val groups = mutableListOf<DuplicateGroup>()
+        rows.groupBy { it.kind to it.rating }.forEach { (key, list) ->
+            val animated = key.first == StickerKind.ANIMATED.name
+            val prints = list.map { Fingerprint(requireNotNull(it.dhash), it.frame_count.toInt(), it.duration_ms.toInt()) }
+            val parent = IntArray(list.size) { it }
+            fun root(i: Int): Int { var x = i; while (parent[x] != x) { parent[x] = parent[parent[x]]; x = parent[x] }; return x }
+            for (i in list.indices) for (j in i + 1 until list.size) {
+                if (prints[i].matches(prints[j], animated)) { val a = root(i); val b = root(j); if (a != b) parent[b] = a }
+            }
+            list.indices.groupBy(::root).values.filter { it.size > 1 }.forEach { members ->
+                val ranked = members.sortedWith(compareByDescending<Int> { list[it].pack_count }.thenByDescending { list[it].use_count }
+                    .thenByDescending { list[it].favorite }.thenBy { list[it].created_at })
+                val keeper = ranked.first()
+                // Chains (A≈B≈C) can link stickers that differ; only offer copies that match the keeper itself.
+                val copies = ranked.drop(1).filter { prints[it].matches(prints[keeper], animated) }
+                if (copies.isNotEmpty()) {
+                    val items = (listOf(keeper) + copies).mapNotNull { sticker(list[it].id) }
+                    if (items.size > 1) groups += DuplicateGroup(items.first(), items.drop(1))
+                }
+            }
+        }
+        return groups.sortedByDescending { it.others.size }
+    }
+
+    /**
+     * Keeps [keeperId] and removes [otherIds]: the keeper takes each copy's place in its packs (same position, so
+     * WhatsApp order holds), its use count, favourite and words. Copies are soft-deleted, so [undoMerge] restores all.
+     */
+    fun mergeDuplicates(keeperId: String, otherIds: List<String>): MergeResult {
+        val affected = linkedSetOf<String>()
+        val result = q.transactionWithResult {
+            val keeper = q.stickerById(keeperId).executeAsOne()
+            val copies = otherIds.distinct().filter { it != keeperId }.mapNotNull { q.stickerById(it).executeAsOneOrNull() }
+                .filter { it.deleted_at == null && it.kind == keeper.kind && it.vault == keeper.vault }
+            val keeperPacks = packsOf(keeperId).toMutableSet()
+            affected += keeperPacks
+            copies.forEach { affected += packsOf(it.id) }
+            val countBefore = affected.associateWith { countOf(it) }
+            val addedTo = mutableListOf<String>()
+            val trayMoves = mutableMapOf<String, String>()
+            val t = now()
+            copies.forEach { copy ->
+                q.packPositionsOf(copy.id).executeAsList().forEach { row ->
+                    if (keeperPacks.add(row.pack_id)) { q.addItem(row.pack_id, keeperId, row.position); addedTo += row.pack_id }
+                    if (q.packById(row.pack_id).executeAsOneOrNull()?.tray_sticker_id == copy.id) {
+                        trayMoves[row.pack_id] = copy.id
+                        q.setPackTray(keeperId, t, row.pack_id)
+                    }
+                }
+                q.softDeleteSticker(t, copy.id)
+            }
+            val all = listOf(keeper) + copies
+            q.absorbSticker(
+                useCount = all.sumOf { it.use_count },
+                favorite = all.any { it.favorite },
+                lastUsed = all.mapNotNull { it.last_used_at }.maxOrNull(),
+                label = keeper.label.ifBlank { copies.firstOrNull { it.label.isNotBlank() }?.label.orEmpty() },
+                tags = Tags.normalize(all.joinToString(" ") { it.tags }),
+                emojis = Tags.emojis(all.joinToString(" ") { it.emojis.replace(',', ' ') }, max = 12).distinct()
+                    .take(StickerRules.MAX_EMOJIS).joinToString(","),
+                now = t, id = keeperId,
+            )
+            affected.forEach { q.bumpPack(t, it) }
+            val thin = affected.filter { (countBefore[it] ?: 0) >= StickerRules.MIN_PACK && countOf(it) < StickerRules.MIN_PACK }
+            MergeResult(keeperId, copies.map { it.id }, addedTo, thin, trayMoves,
+                MergeResult.KeeperState(keeper.use_count, keeper.favorite, keeper.last_used_at, keeper.label, keeper.tags, keeper.emojis))
+        }
+        notify(affected)
+        return result
+    }
+
+    fun undoMerge(result: MergeResult) {
+        val affected = mutableSetOf<String>()
+        q.transaction {
+            val t = now()
+            result.addedTo.forEach { q.removeItem(it, result.keeperId); affected += it }
+            result.removed.forEach { id -> q.undeleteSticker(t, id); affected += packsOf(id) }
+            result.trayMoves.forEach { (packId, stickerId) -> q.setPackTray(stickerId, t, packId) }
+            with(result.before) { q.absorbSticker(useCount, favorite, lastUsed, label, tags, emojis, t, result.keeperId) }
+            affected += packsOf(result.keeperId)
+            affected.forEach { q.bumpPack(t, it) }
+        }
+        notify(affected)
+    }
+
     // ---------------- import journal (resumable imports) ----------------
 
     data class ImportSession(val id: String, val source: String, val mode: String, val state: String, val message: String?)
@@ -459,7 +583,7 @@ class Library(
     private fun stickerQuery(f: StickerFilter) = Tags.searchPattern(f.query)?.let { pattern ->
         q.searchStickers(f.vault, if (f.includeAdult) 1L else 0L, f.kind?.name, pattern, f.limit.toLong())
     } ?: q.browseStickers(f.kind?.name, if (f.favoritesOnly) 1L else 0L, if (f.includeAdult) 1L else 0L, f.vault,
-        f.limit.toLong(), 0L)
+        f.sort.name, f.limit.toLong(), 0L)
 
     private fun countOf(packId: String) = q.countItems(packId).executeAsOne().toInt()
 

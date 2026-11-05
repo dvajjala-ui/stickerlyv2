@@ -104,8 +104,36 @@ WHERE deleted_at IS NULL
   AND (:favoriteOnly = 0 OR favorite = 1)
   AND (:includeAdult = 1 OR rating = 'GENERAL')
   AND vault = :vault
-ORDER BY created_at DESC, id
+ORDER BY
+    CASE WHEN :sort = 'USED' THEN use_count END DESC,
+    CASE WHEN :sort = 'USED' THEN last_used_at END DESC,
+    CASE WHEN :sort = 'NAME' THEN (label = '') END ASC,
+    CASE WHEN :sort = 'NAME' THEN lower(label) END ASC,
+    CASE WHEN :sort = 'OLDEST' THEN created_at END ASC,
+    created_at DESC, id
 LIMIT :limit OFFSET :offset;
+
+-- ---------- duplicates ----------
+stickerFingerprints:
+SELECT s.id, s.kind, s.rating, s.dhash, s.frame_count, s.duration_ms, s.use_count, s.favorite, s.created_at,
+    (SELECT COUNT(*) FROM pack_item pi WHERE pi.sticker_id = s.id) AS pack_count
+FROM sticker s
+WHERE s.deleted_at IS NULL AND s.dhash IS NOT NULL AND s.vault = :vault AND (:includeAdult = 1 OR s.rating = 'GENERAL');
+
+stickersMissingHash:
+SELECT id FROM sticker WHERE dhash IS NULL AND deleted_at IS NULL LIMIT :limit;
+
+setStickerHash:
+UPDATE sticker SET dhash = :dhash WHERE id = :id;
+
+packPositionsOf:
+SELECT pack_id, position FROM pack_item WHERE sticker_id = ?;
+
+-- The keeper of a merged duplicate group takes over the others' use counts, favourite flag and words.
+absorbSticker:
+UPDATE sticker SET use_count = :useCount, favorite = :favorite, last_used_at = :lastUsed,
+    label = :label, tags = :tags, emojis = :emojis, updated_at = :now
+WHERE id = :id;
 
 searchStickers:
 SELECT * FROM sticker

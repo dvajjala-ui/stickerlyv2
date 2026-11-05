@@ -5,13 +5,12 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.graphics.asSkiaBitmap
 import androidx.compose.ui.test.ComposeUiTest
 import androidx.compose.ui.test.ExperimentalTestApi
-import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.hasScrollAction
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.onFirst
-import androidx.compose.ui.test.onRoot
+import androidx.compose.ui.test.isRoot
 import androidx.compose.ui.test.captureToImage
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollToIndex
@@ -56,11 +55,35 @@ import kotlin.test.Test
 class UiSnapshotTest {
     private val out = File("build/ui-snapshots").apply { mkdirs() }
 
-    @Test fun screens() {
+    // Each test gets the runner's one-minute budget, so the tour is split in two.
+    @Test fun libraryWhatsAppAndDiscover() = app { _ ->
+        settle(); shot("01-library")
+        tap("Packs"); settle(); shot("02-packs")
+        tap("Cricket"); settle(); shot("03-pack")
+        step { onAllNodes(hasText("Back") or hasContentDescription("Back")).onFirst().performClick() }; settle(1)
+        tap("WhatsApp"); settle(); shot("04-whatsapp")
+        step { scrollList().performScrollToIndex(5) }; settle(1); shot("05-whatsapp-shelf")
+        tap("Discover"); settle(seconds = 3); shot("06-discover")
+        // Scroll in steps so each page load can finish, then jump to the last item (footer).
+        listOf(40, 61, 100).forEach { step { scrollList().performScrollToIndex(it) }; settle(seconds = 3) }
+        shot("07-discover-page3")
+        for (index in 200 downTo 100) if (step { scrollList().performScrollToIndex(index) }.isSuccess) break
+        settle(1); shot("08-discover-end")
+    }
+
+    @Test fun sortSettingsAndDuplicates() = app { _ ->
+        settle(1)
+        tap("Newest"); settle(1); shot("09-sort-menu")
+        tap("Most used"); settle(1)
+        onAllNodes(hasContentDescription("Settings") and hasClickAction()).onFirst().performClick(); settle(1); shot("10-settings")
+        tap("Find duplicates"); settle(); shot("11-duplicates")
+        tap("Merge all"); settle(); shot("12-duplicates-merged")
+    }
+
+    private fun app(script: ComposeUiTest.(Library) -> Unit) {
         if (System.getenv("STICKERDOCK_SNAPSHOTS") != "1") return
         val fixtures = File("../../work/dev-feed/stickers").listFiles { f -> f.extension == "webp" }.orEmpty().sortedBy { it.name }
         require(fixtures.size >= 6) { "Put a few WhatsApp-ready .webp files in work/dev-feed/stickers" }
-
         // Coil's file:// handling expects Unix paths; read local stickers as bytes instead.
         SingletonImageLoader.setUnsafe { context ->
             ImageLoader.Builder(context).components {
@@ -68,29 +91,14 @@ class UiSnapshotTest {
             }.build()
         }
         val library = libraryWith(fixtures)
-        val host = FakeHost()
         val discover = DiscoverClient.create(System.getenv("STICKERDOCK_DISCOVER") ?: "http://127.0.0.1:8787", "dev")
-
         runDesktopComposeUiTest(720, 1560) {
             // Progress indicators animate forever; drive the clock by hand so the test never waits for "idle".
             mainClock.autoAdvance = false
             setContent {
-                CompositionLocalProvider(LocalDensity provides Density(2f)) { StickerDockRoot(host, library, discover, dark = true) }
+                CompositionLocalProvider(LocalDensity provides Density(2f)) { StickerDockRoot(FakeHost(), library, discover, dark = true) }
             }
-            settle(); shot("01-library")
-            tap("Packs"); settle(); shot("02-packs")
-            tap("Cricket"); settle(); shot("03-pack")
-            step { onAllNodes(hasText("Back") or hasContentDescription("Back")).onFirst().performClick() }; settle(1)
-            tap("WhatsApp"); settle(); shot("04-whatsapp")
-            step { scrollList().performScrollToIndex(5) }; settle(1); shot("05-whatsapp-shelf")
-            tap("Discover"); settle(seconds = 3); shot("06-discover")
-            // Scroll in steps so each page load can finish, then jump to the last item (footer).
-            listOf(40, 61, 100).forEach { step { scrollList().performScrollToIndex(it) }; settle(seconds = 3) }
-            shot("07-discover-page3")
-            val last = runCatching { scrollList().fetchSemanticsNode().config[SemanticsProperties.CollectionInfo] }.getOrNull()
-            println("discover grid collection info: $last")
-            for (index in 200 downTo 100) if (step { scrollList().performScrollToIndex(index) }.isSuccess) break
-            settle(1); shot("08-discover-end")
+            script(library)
         }
     }
 
@@ -106,9 +114,15 @@ class UiSnapshotTest {
         repeat(seconds * 5) { Thread.sleep(200); mainClock.advanceTimeBy(200) }
     }
 
+    /** Saves the screen; an open menu or dialog is its own root and is saved next to it as `-popup`. */
     private fun ComposeUiTest.shot(name: String) {
-        val bitmap = onRoot().captureToImage().asSkiaBitmap()
-        File(out, "$name.png").writeBytes(Image.makeFromBitmap(bitmap).encodeToData(EncodedImageFormat.PNG)!!.bytes)
+        val roots = onAllNodes(isRoot())
+        val count = roots.fetchSemanticsNodes().size
+        (0 until count).forEach { i ->
+            val bitmap = roots[i].captureToImage().asSkiaBitmap()
+            val suffix = if (i == 0) "" else "-popup$i"
+            File(out, "$name$suffix.png").writeBytes(Image.makeFromBitmap(bitmap).encodeToData(EncodedImageFormat.PNG)!!.bytes)
+        }
     }
 
     private fun libraryWith(fixtures: List<File>): Library {
@@ -127,6 +141,11 @@ class UiSnapshotTest {
             "Aaj toh party banti hai", "Chill maar yaar", "Ye kya ho raha hai", "Office ke dukh")
         fixtures.forEachIndexed { i, f -> lib.addSticker(f.readBytes(), Origin.IMPORT, label = labels[i % labels.size]) as? AddResult.Added }
         val all = lib.stickers(StickerFilter(limit = 1000))
+        // Two near-duplicate groups, as if imported before hashing existed.
+        all.filter { it.kind == StickerKind.STATIC }.let { statics ->
+            statics.take(2).forEach { lib.setHash(it.id, 42L) }
+            statics.drop(2).take(3).forEach { lib.setHash(it.id, 4242L) }
+        }
         val names = listOf("From WhatsApp", "From WhatsApp · Animated", "Office Ke Dukh", "Hinglish reactions", "Monday mood",
             "Chai time", "Party", "Savage replies", "Good morning", "Bollywood", "Cricket", "Exam season")
         names.forEachIndexed { i, name ->
