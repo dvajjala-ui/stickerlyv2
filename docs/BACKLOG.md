@@ -24,7 +24,9 @@
 14. Quality judge pass on generated stickers (vision model score) before auto-publish; caption A/B variants.
 15. Original art via Cloudflare Workers AI FLUX (owner account) for categories without good sources.
 
-## HandNavigate → v2 intake (after core)
+## HandNavigate → v2 intake — DONE on HandNavigate branch `stickerdock-v2-intake` (01ea9e1, not pushed)
+`service/stickerdock-v2.cjs` + `createSink()`; 41/41 service tests pass. Merge it and set the two env vars.
+Original plan below for reference.
 - HandNavigate (`../hand`, `service/stickerdock.cjs`) posts to v1 `/api/ingest` with a claim/report job queue that
   v2 doesn't have. Add a v2 sink: `POST {SUPABASE_URL}/functions/v1/intake` with `x-intake-token` and
   `{image_base64, mime, site, source_url, page_url, author, license, topic, collector:"handnavigate"}` →

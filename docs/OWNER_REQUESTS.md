@@ -16,6 +16,12 @@ both of your WhatsApps. It is also installed inside Dual Messenger.
 5. **My stickers → Add stickers → Make a sticker from a photo** → remove background, add a caption, save.
 6. Phone setting I changed for the night: Developer options → **Stay awake** → turn off.
 
+## 0b. HandNavigate → StickerDock v2
+In `D:\5. GitUploaded\hand` the branch `stickerdock-v2-intake` (local, not pushed) adds a v2 sink: set
+`STICKERDOCK_V2_INTAKE_URL=https://<project>.supabase.co/functions/v1/intake` and `STICKERDOCK_V2_INTAKE_TOKEN`
+(same as the function's `INTAKE_TOKEN`) and every HandNavigate download lands in v2's `source_images`.
+Merge when you're happy (41/41 service tests pass on the branch).
+
 ## 1. Create the new Supabase project (needed for Discover, the AI worker and Admin)
 1. supabase.com → New project (free plan is fine to start). Region: Mumbai (`ap-south-1`).
 2. Settings → API: copy **Project URL**, **anon public key**, **service_role key**. Settings → Database: the **DB password**.
