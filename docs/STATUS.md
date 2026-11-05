@@ -36,6 +36,13 @@ All checks below ran over adb with debug-only command hooks; no WhatsApp UI was 
   in 146 s. **One library of 760 unique stickers (357 static, 403 animated)**; 8 shelf packs pass validation.
   Remaining skips were single-frame "animations" (static stickers in an animation wrapper) → now treated as
   static (fix pending re-run) and 3 files over 900 KB.
+- **Final migration numbers** (single-frame fix in): main 666 → 590 added / 73 dup / **3 skipped**; Dual 905 →
+  201 added / 702 dup / **2 skipped** (all five are animations over 900 KB). **791 unique stickers** (388 static,
+  403 animated) from 1,571 files; 16/16 provider self-tests pass (8 packs × user 0 and user 95 proxy).
+- **Photo creator** ✅ on device: ML Kit module downloaded, background removed, white outline, outlined caption
+  "Kya baat hai boss", saved into a new "My creations" pack.
+- **Keyboard (K1)** ✅ StickerDock keyboard shows the library (animated stickers play); tapping a sticker committed
+  it as `image/webp.wasticker` (26 KB) into the test field, which decoded it. Owner's Samsung Keyboard restored.
 - **Samsung Freecess** froze the companion (user 95) ~50 s into a background import; the debug broadcast then hit
   the background ANR timeout and Android killed it. Real imports run from foreground screens / foreground jobs;
   debug hooks now release the broadcast immediately and run with the showcase screen in front.
