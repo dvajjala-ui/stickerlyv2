@@ -1,0 +1,24 @@
+name: Supabase schema
+
+# Applies every migration to PGlite (in-process Postgres set up like a fresh Supabase project) and checks what the
+# phones' anonymous key can see. No Supabase project or secrets needed.
+on:
+  push:
+    paths: ['backend/supabase/**', '.github/workflows/schema.yml']
+  pull_request:
+    paths: ['backend/supabase/**', '.github/workflows/schema.yml']
+
+permissions:
+  contents: read
+
+jobs:
+  migrations:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: backend/supabase/test
+    steps:
+      - uses: actions/checkout@v7
+      - run: npm ci --no-audit --no-fund
+      - run: npm test

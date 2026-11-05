@@ -1,0 +1,13 @@
+{
+  "name": "stickerdock-supabase-tests",
+  "private": true,
+  "type": "module",
+  "description": "Runs the Supabase migrations on PGlite (in-process Postgres) and checks what the anonymous key can see.",
+  "scripts": {
+    "test": "node --test"
+  },
+  "devDependencies": {
+    "@electric-sql/pglite": "0.5.11",
+    "@electric-sql/pglite-pgvector": "0.0.12"
+  }
+}
