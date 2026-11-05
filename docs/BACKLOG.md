@@ -35,7 +35,8 @@
     Admin "Held" tab with scores + bulk approve, re-release held stickers when the threshold changes.
 15. Original art via Cloudflare Workers AI FLUX (owner account) for categories without good sources.
 
-## HandNavigate → v2 intake — DONE on HandNavigate branch `stickerdock-v2-intake` (01ea9e1, not pushed)
+## HandNavigate → v2 — PAUSED (owner request 2026-11-05); plan in docs/HANDNAVIGATE_PLAN.md
+Image delivery (v2 sink) is DONE on HandNavigate branch `stickerdock-v2-intake` (01ea9e1, not pushed).
 `service/stickerdock-v2.cjs` + `createSink()`; 41/41 service tests pass. Merge it and set the two env vars.
 Original plan below for reference.
 - HandNavigate (`../hand`, `service/stickerdock.cjs`) posts to v1 `/api/ingest` with a claim/report job queue that
