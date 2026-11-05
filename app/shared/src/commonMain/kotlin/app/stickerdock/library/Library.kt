@@ -276,6 +276,10 @@ class Library(
     /** Packs WhatsApp may read: on the shelf and holding 3–30 live stickers. */
     fun shelfPacks(): List<PackInfo> = q.shelfPacks().executeAsList().map { it.toInfo() }.filter { it.whatsAppReady }
 
+    /** Every pack the user put on the shelf, including ones WhatsApp can't see until they hold 3–30 stickers again. */
+    fun shelfFlow(): Flow<List<PackInfo>> =
+        q.shelfPacks().asFlow().mapToList(Dispatchers.Default).map { rows -> rows.map { it.toInfo() } }
+
     fun isInPack(packId: String, stickerId: String) = q.isInPack(packId, stickerId).executeAsOne() > 0
 
     fun addToPack(packId: String, stickerIds: List<String>): PackAddResult {

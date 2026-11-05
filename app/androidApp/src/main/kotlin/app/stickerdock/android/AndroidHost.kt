@@ -21,6 +21,7 @@ import app.stickerdock.android.imports.ImportWorker
 import app.stickerdock.android.keyboard.KeyboardTestActivity
 import app.stickerdock.android.whatsapp.WhatsAppDirectory
 import app.stickerdock.android.whatsapp.WhatsAppValidator
+import app.stickerdock.core.StickerRules
 import app.stickerdock.host.DualState
 import app.stickerdock.host.HostActions
 import app.stickerdock.host.ImportProgress
@@ -182,6 +183,8 @@ class AndroidHost(private val activity: ComponentActivity, private val graph: Ap
         val pack = graph.library.pack(packId) ?: return
         if (!pack.whatsAppReady) return showMessage("WhatsApp needs 3–30 stickers in a pack")
         graph.library.setShelf(packId, true)
+        val offered = graph.library.shelfPacks().size
+        if (offered > StickerRules.SHELF_GUIDELINE) graph.events.record("whatsapp", "offering $offered packs (guideline ${StickerRules.SHELF_GUIDELINE})")
         val report = WhatsAppValidator(activity).validate(packId)
         if (!report.ok) {
             graph.events.record("whatsapp", "pre-flight failed for $packId: ${report.problems.take(3)}")

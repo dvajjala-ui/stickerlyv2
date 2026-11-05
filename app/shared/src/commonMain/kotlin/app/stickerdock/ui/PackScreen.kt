@@ -60,6 +60,7 @@ fun PackScreen(app: AppModel, packId: String, onBack: () -> Unit) {
     val pack by remember(packId) { library.packFlow(packId) }.collectAsState(library.pack(packId))
     val stickers by remember(packId) { library.packStickersFlow(packId) }.collectAsState(emptyList())
     val whatsApp by host.whatsApp.collectAsState()
+    val offered by remember { library.shelfFlow() }.collectAsState(emptyList())
     var menu by remember { mutableStateOf(false) }
     var rename by remember { mutableStateOf(false) }
     var confirmDelete by remember { mutableStateOf(false) }
@@ -81,6 +82,13 @@ fun PackScreen(app: AppModel, packId: String, onBack: () -> Unit) {
                         DropdownMenuItem({ Text("Rename") }, { menu = false; rename = true })
                         DropdownMenuItem({ Text("Share pack") }, { menu = false; host.sharePack(packId) })
                         DropdownMenuItem({ Text("Refresh in WhatsApp") }, { menu = false; library.bump(packId); scope.notify(snackbar, "WhatsApp will reload this pack") })
+                        if (current.onShelf) DropdownMenuItem({ Text("Stop offering to WhatsApp") }, {
+                            menu = false
+                            library.setShelf(packId, false)
+                            scope.notify(snackbar, "No longer offered to WhatsApp. If WhatsApp still lists it, delete it there.") {
+                                library.setShelf(packId, true)
+                            }
+                        })
                         DropdownMenuItem({ Text("Delete pack") }, { menu = false; confirmDelete = true })
                     }
                 },
@@ -90,8 +98,10 @@ fun PackScreen(app: AppModel, packId: String, onBack: () -> Unit) {
         LazyVerticalGrid(GridCells.Adaptive(76.dp), Modifier.padding(inner).fillMaxSize(), contentPadding = PaddingValues(12.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             item(span = { GridItemSpan(maxLineSpan) }) {
+                val othersOffered = offered.count { it.whatsAppReady && it.id != current.id }
                 WhatsAppAddCard(app, current.id, current.count, current.whatsAppReady, whatsApp.targets, whatsApp.added[current.id].orEmpty(),
-                    keyboardReady = whatsApp.keyboardEnabled)
+                    keyboardReady = whatsApp.keyboardEnabled,
+                    overLimit = host.shelfGuideline?.takeIf { !current.onShelf && othersOffered >= it })
             }
             item(span = { GridItemSpan(maxLineSpan) }) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -133,7 +143,7 @@ fun PackScreen(app: AppModel, packId: String, onBack: () -> Unit) {
 
 @Composable
 private fun WhatsAppAddCard(app: AppModel, packId: String, count: Int, ready: Boolean, targets: List<WhatsAppTarget>,
-                            added: Set<String>, keyboardReady: Boolean) {
+                            added: Set<String>, keyboardReady: Boolean, overLimit: Int?) {
     val host = app.host
     Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -157,6 +167,10 @@ private fun WhatsAppAddCard(app: AppModel, packId: String, count: Int, ready: Bo
                     }
                 }
             }
+            if (ready && overLimit != null) Text(
+                "You already offer $overLimit packs to WhatsApp, the most its guidelines allow per app. This one may not " +
+                    "show up — remove one you rarely use in the WhatsApp tab first.",
+                style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
             val missing = targets.count { it.ready && it.id !in added }
             if (ready && missing > 1) Button({ host.addToAllWhatsApps(packId) }, Modifier.fillMaxWidth()) {
                 Text("Add to all $missing WhatsApps")

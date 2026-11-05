@@ -19,6 +19,12 @@ object StickerRules {
     const val STATIC_ACCESSIBILITY_MAX = 125
     const val ANIMATED_ACCESSIBILITY_MAX = 255
 
+    /**
+     * WhatsApp's Android README says an app offers 1–10 packs. Whether WhatsApp enforces it is untested
+     * (TEST_MATRIX P3), so StickerDock warns past it instead of blocking.
+     */
+    const val SHELF_GUIDELINE = 10
+
     /** Characters WhatsApp accepts in a pack identifier. */
     private val identifierPattern = Regex("^[a-zA-Z0-9_.\\- ]{1,128}$")
 

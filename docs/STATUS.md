@@ -51,6 +51,9 @@ All checks below ran over adb with debug-only command hooks; no WhatsApp UI was 
 - **Keyboard search** ✅ 🔍 tab → own letter pad (works where the host field has no text); typing "chalo" showed
   "Chalo chalo", tapping it committed `image/webp.wasticker` (161 KB, decoded). Android 16 draws the IME edge to
   edge, so the keys now sit above the navigation bar (`navigationBarsPadding`), checked on screen.
+- **Shelf management** ✅ WhatsApp tab lists the packs offered to WhatsApp with covers and per-WhatsApp add buttons;
+  with 12 offered it shows "12 of 10" and the guideline warning; ✕ removed "Animated 4" with an Undo snackbar.
+  Shelf restored to the original 8 afterwards. `:shared:jvmTest` 24/24 (shelf flow keeps under-3 packs listed).
 - **Samsung Freecess** froze the companion (user 95) ~50 s into a background import; the debug broadcast then hit
   the background ANR timeout and Android killed it. Real imports run from foreground screens / foreground jobs;
   debug hooks now release the broadcast immediately and run with the showcase screen in front.

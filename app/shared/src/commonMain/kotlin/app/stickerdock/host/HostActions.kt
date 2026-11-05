@@ -1,5 +1,6 @@
 package app.stickerdock.host
 
+import app.stickerdock.core.StickerRules
 import kotlinx.coroutines.flow.StateFlow
 
 enum class TargetKind { WHATSAPP, BUSINESS, CLONE }
@@ -62,6 +63,11 @@ interface HostActions {
     val appVersion: String
     /** Installed application id (debug builds add a suffix). */
     val appId: String
+    /**
+     * How many packs WhatsApp's guidelines let this app offer at once (Android reads them from our provider),
+     * or null where adding copies the pack into WhatsApp (iOS).
+     */
+    val shelfGuideline: Int? get() = StickerRules.SHELF_GUIDELINE
 
     fun refreshWhatsApp()
     fun addToWhatsApp(packId: String, targetId: String)

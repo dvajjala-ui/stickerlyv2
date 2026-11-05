@@ -79,6 +79,8 @@ internal class IosHost(private val graph: IosGraph, private val presenter: Prese
     override val prefs: Prefs = graph.prefs
     override val appVersion: String = graph.appVersion
     override val appId: String = graph.appId
+    // iOS copies each pack into WhatsApp through the pasteboard; there is no provider shelf to cap.
+    override val shelfGuideline: Int? = null
 
     private val queue = ArrayDeque<ImportJob>()
     private var importing = false

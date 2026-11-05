@@ -10,6 +10,8 @@ import app.stickerdock.library.Origin
 import app.stickerdock.library.StickerFiles
 import app.stickerdock.library.StickerFilter
 import java.util.Properties
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.runBlocking
 import kotlin.test.BeforeTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -97,10 +99,15 @@ class LibraryTest {
         assertTrue(v2 > v1)
         lib.deleteStickers(listOf(ids[1]))
         assertTrue(lib.shelfPacks().isEmpty(), "deleting below 3 removes it from WhatsApp")
+        val managed = runBlocking { lib.shelfFlow().first() }
+        assertEquals(listOf(pack to 2), managed.map { it.id to it.count }, "the shelf screen still lists it so the user can fix it")
         assertTrue(lib.pack(pack)!!.dataVersion > v2)
         assertTrue(pack in changed)
         lib.undoDelete(listOf(ids[1]))
         assertEquals(1, lib.shelfPacks().size)
+        lib.setShelf(pack, false)
+        assertTrue(lib.shelfPacks().isEmpty())
+        assertTrue(runBlocking { lib.shelfFlow().first() }.isEmpty())
     }
 
     @Test fun autoPackSplitsByKindAndSize() {

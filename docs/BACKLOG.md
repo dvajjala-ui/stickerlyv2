@@ -7,13 +7,14 @@
    companion launcher shortcut as the fallback path.
 3. Companion first-run guide in the main app (copyable adb commands exist; add a Windows one-click script
    `tools/setup-dual.ps1` that installs + grants for the detected clone user).
-4. "Add to both" one-flow: queue main + Business + Dual adds back-to-back after each WhatsApp confirmation.
-5. Shelf management UI: show shelf size, warn above 10 packs until P3 proves WhatsApp accepts more.
-6. Keyboard: in-keyboard search box (mini key row), pack tabs with icons, long-press preview, haptics.
+4. ~~"Add to both" one-flow~~ — DONE: "Add to all N WhatsApps" queues main → Business → Dual after each confirmation.
+5. ~~Shelf management UI~~ — DONE: WhatsApp tab lists packs offered to WhatsApp ("N of 10", warning past 10, remove
+   with undo); pack screen warns before adding an 11th. Lift the warning if P3 proves WhatsApp reads more.
+6. Keyboard: ~~in-keyboard search~~ (DONE, own letter pad); still to do: pack tabs with icons, long-press preview, haptics.
 
 ## Core — library & import
-7. Recover the last rejected animated stickers once `AnimatedReencoder` (Fresco) is verified on device; GIF → animated.
-8. Video → animated sticker (MediaMetadataRetriever frames → same encoder/muxer), 0.5–3 s trim UI.
+7. ~~Recover rejected animated stickers; GIF → animated~~ — DONE (Fresco re-encoder, Lottie `.was`; 5 of 1,571 left).
+8. ~~Video → animated sticker~~ — DONE (`CreateVideoStickerActivity`, start/length chips, caption).
 9. Find & merge duplicates already in the library (stickers imported before dHash existed).
 10. Import progress UI for the companion path; SAF picker flow check on device (A2 UI, A3 process death).
 11. Pagination for libraries > 2,000 stickers (current grid loads up to 600 per query).
