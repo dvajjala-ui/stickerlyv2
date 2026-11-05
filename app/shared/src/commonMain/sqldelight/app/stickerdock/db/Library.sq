@@ -22,7 +22,11 @@ CREATE TABLE sticker (
     created_at INTEGER NOT NULL,
     updated_at INTEGER NOT NULL,
     deleted_at INTEGER,                 -- soft delete enables undo; purged later
-    dhash INTEGER                       -- 64-bit difference hash of the first frame (near-duplicate check)
+    dhash INTEGER,                      -- 64-bit difference hash of the first frame (near-duplicate check)
+    auto_tags TEXT NOT NULL DEFAULT '', -- words read on the sticker + label/emoji words (on device), search only
+    auto_tagged_at INTEGER,             -- when auto_tags were computed; NULL = still to do
+    auto_caption TEXT NOT NULL DEFAULT '', -- caption read on the sticker; shown only while the user gave no name
+    auto_tag_version INTEGER NOT NULL DEFAULT 0 -- AutoTags.VERSION that produced auto_tags/auto_caption
 );
 
 CREATE INDEX sticker_browse ON sticker(deleted_at, kind, created_at);
@@ -149,11 +153,26 @@ WHERE deleted_at IS NULL
   AND (:includeAdult = 1 OR rating = 'GENERAL')
   AND (:kind IS NULL OR kind = :kind)
   AND (label LIKE :pattern ESCAPE '\' OR tags LIKE :pattern ESCAPE '\' OR emojis LIKE :pattern ESCAPE '\'
-       OR origin_ref LIKE :pattern ESCAPE '\'
+       OR auto_tags LIKE :pattern ESCAPE '\' OR auto_caption LIKE :pattern ESCAPE '\' OR origin_ref LIKE :pattern ESCAPE '\'
        OR id IN (SELECT pi.sticker_id FROM pack_item pi JOIN pack p ON p.id = pi.pack_id WHERE p.name LIKE :pattern ESCAPE '\'))
-ORDER BY CASE WHEN label LIKE :pattern ESCAPE '\' THEN 0 WHEN tags LIKE :pattern ESCAPE '\' THEN 1 ELSE 2 END,
+ORDER BY CASE WHEN label LIKE :pattern ESCAPE '\' THEN 0 WHEN tags LIKE :pattern ESCAPE '\' THEN 1
+    WHEN auto_caption LIKE :pattern ESCAPE '\' THEN 2 WHEN auto_tags LIKE :pattern ESCAPE '\' THEN 3 ELSE 4 END,
     use_count DESC, created_at DESC
 LIMIT :limit;
+
+-- ---------- auto tags (on-device text recognition + labels) ----------
+autoTagQueue:
+SELECT id, emojis, label FROM sticker WHERE deleted_at IS NULL AND auto_tag_version < :version
+ORDER BY auto_tagged_at IS NOT NULL, last_used_at DESC, created_at DESC LIMIT :limit;
+
+setAutoTags:
+UPDATE sticker SET auto_tags = :autoTags, auto_caption = :caption, auto_tagged_at = :now, auto_tag_version = :version
+WHERE id = :id;
+
+autoTagCounts:
+SELECT
+    (SELECT COUNT(*) FROM sticker WHERE deleted_at IS NULL) AS total,
+    (SELECT COUNT(*) FROM sticker WHERE deleted_at IS NULL AND auto_tag_version >= :version) AS done;
 
 recentStickers:
 SELECT * FROM sticker
@@ -227,6 +246,9 @@ UPDATE pack SET on_shelf = :onShelf, updated_at = :now WHERE id = :id;
 
 setPackRating:
 UPDATE pack SET rating = :rating, updated_at = :now WHERE id = :id;
+
+setPackFollow:
+UPDATE pack SET follow_updates = :follow, updated_at = :now WHERE id = :id;
 
 setPackRemoteVersion:
 UPDATE pack SET remote_version = :version, updated_at = :now WHERE id = :id;

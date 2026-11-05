@@ -1,0 +1,4 @@
+-- v3: search words the phone works out by itself (text on the sticker, image labels, emoji words), kept apart from
+-- the user's own tags so they can be recomputed and never overwrite what the user typed.
+ALTER TABLE sticker ADD COLUMN auto_tags TEXT NOT NULL DEFAULT '';
+ALTER TABLE sticker ADD COLUMN auto_tagged_at INTEGER;

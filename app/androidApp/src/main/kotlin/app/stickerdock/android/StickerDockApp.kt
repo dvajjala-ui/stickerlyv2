@@ -36,7 +36,7 @@ class StickerDockApp : Application(), SingletonImageLoader.Factory {
 class AppGraph private constructor(val context: Context) {
     val files: AndroidStickerFiles = AndroidStickerFiles(context)
 
-    private val driver by lazy {
+    internal val driver by lazy {
         AndroidSqliteDriver(
             schema = StickerDatabase.Schema,
             context = context,

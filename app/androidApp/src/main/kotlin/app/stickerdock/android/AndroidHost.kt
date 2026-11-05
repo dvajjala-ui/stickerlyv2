@@ -261,6 +261,10 @@ class AndroidHost(private val activity: ComponentActivity, private val graph: Ap
 
     override fun showMessage(text: String) = Toast.makeText(activity, text, Toast.LENGTH_LONG).show()
 
+    override val canAutoTag: Boolean get() = !Dual.isCompanion(activity)
+
+    override fun startAutoTagging() = app.stickerdock.android.tags.AutoTagWorker.enqueue(activity)
+
     override fun backfillHashes(): Int {
         val library = graph.library
         var hashed = 0

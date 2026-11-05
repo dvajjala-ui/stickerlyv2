@@ -10,7 +10,10 @@
 4. ~~"Add to both" one-flow~~ — DONE: "Add to all N WhatsApps" queues main → Business → Dual after each confirmation.
 5. ~~Shelf management UI~~ — DONE: WhatsApp tab lists packs offered to WhatsApp ("N of 10", warning past 10, remove
    with undo); pack screen warns before adding an 11th. Lift the warning if P3 proves WhatsApp reads more.
-6. Keyboard: ~~in-keyboard search~~ (DONE, own letter pad); still to do: pack tabs with icons, long-press preview, haptics.
+6. Keyboard: ~~in-keyboard search~~ (DONE, own letter pad); ~~pack tabs with icons, long-press preview, haptics~~
+   (DONE in the shared `KeyboardPanel`, snapshot-tested; phone check pending).
+6b. ~~Searchable imports~~ — DONE: on-device auto tags (ML Kit text Latin + Devanagari, image labels, emoji words,
+   romanized Hindi) in `auto_tags`; file names hidden as names. Phone check pending (`--es cmd autotag`).
 
 ## Core — library & import
 7. ~~Recover rejected animated stickers; GIF → animated~~ — DONE (Fresco re-encoder, Lottie `.was`; 5 of 1,571 left).

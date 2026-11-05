@@ -23,6 +23,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -34,6 +35,9 @@ import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.withContext
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -65,6 +69,10 @@ fun SettingsScreen(app: AppModel, onBack: () -> Unit, onOpenDuplicates: () -> Un
                     Text("Find near-identical stickers (the same picture saved twice, from both WhatsApps or old imports) " +
                         "and merge them without losing pack places.", style = MaterialTheme.typography.bodySmall)
                     TextButton(onOpenDuplicates) { Text("Find duplicates") }
+                    if (host.canAutoTag) {
+                        HorizontalDivider()
+                        AutoTagRow(app)
+                    }
                 }
             }
             Card(Modifier.fillMaxWidth()) {
@@ -102,6 +110,27 @@ fun SettingsScreen(app: AppModel, onBack: () -> Unit, onOpenDuplicates: () -> Un
             text = { Text(text, Modifier.verticalScroll(rememberScrollState()), fontFamily = FontFamily.Monospace, style = MaterialTheme.typography.bodySmall) },
             confirmButton = { TextButton({ clipboard.setText(AnnotatedString(text)); diagnostics = null }) { Text("Copy") } },
             dismissButton = { TextButton({ diagnostics = null }) { Text("Close") } })
+    }
+}
+
+/** Progress of on-device reading of words on stickers (search for stickers that arrived without any). */
+@Composable
+private fun AutoTagRow(app: AppModel) {
+    var progress by remember { mutableStateOf(app.library.autoTagProgress()) }
+    LaunchedEffect(Unit) {
+        while (true) {
+            delay(3_000)
+            progress = withContext(Dispatchers.Default) { app.library.autoTagProgress() }
+        }
+    }
+    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        Text("Words on stickers", fontWeight = FontWeight.SemiBold)
+        Text(
+            if (progress.remaining == 0) "Read on all ${progress.total} stickers, so search finds them by their text."
+            else "Read on ${progress.done} of ${progress.total}. The phone reads the rest in the background (on device, " +
+                "nothing is uploaded), so search can find stickers by the words printed on them.",
+            style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        if (progress.remaining > 0) TextButton(app.host::startAutoTagging) { Text("Read now") }
     }
 }
 

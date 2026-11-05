@@ -102,6 +102,9 @@ dependencies {
     implementation(libs.soloader.nativeloader)
     implementation(libs.lottie)
     implementation(libs.mlkit.subject.segmentation)
+    implementation(libs.mlkit.text.recognition)
+    implementation(libs.mlkit.text.recognition.devanagari)
+    implementation(libs.mlkit.image.labeling)
     debugImplementation(libs.compose.uiTooling)
     testImplementation(libs.junit)
 }

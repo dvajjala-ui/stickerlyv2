@@ -1,5 +1,14 @@
 package app.stickerdock
 
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Modifier
+import app.stickerdock.ui.KeyboardPanel
+import app.stickerdock.ui.PanelSticker
+import app.stickerdock.ui.PanelTab
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.graphics.asSkiaBitmap
@@ -87,6 +96,41 @@ class UiSnapshotTest {
         shot("13-selection")
         step { onAllNodes(hasContentDescription("More") and hasClickAction()).onFirst().performClick() }; settle(1)
         shot("14-selection-more")
+    }
+
+    /** The sticker keyboard panel at phone width (310 dp tall, as the IME shows it). */
+    @Test fun keyboardPanel() {
+        if (System.getenv("STICKERDOCK_SNAPSHOTS") != "1") return
+        val fixtures = File("../../work/dev-feed/stickers").listFiles { f -> f.extension == "webp" }.orEmpty().sortedBy { it.name }
+        require(fixtures.size >= 6)
+        val models = fixtures.map { it.readBytes() }
+        val stickers = models.mapIndexed { i, bytes -> PanelSticker("s$i", listOf("Chai pe charcha", "Kya baat hai", "Monday")[i % 3], bytes, i % 2 == 0) }
+        val tabs = listOf(PanelTab("for_you", "For you"), PanelTab("favorites", "Favourites", symbol = "★"),
+            PanelTab("recent", "Recent", symbol = "🕘")) +
+            listOf("Office Ke Dukh", "From WhatsApp", "Cricket", "Bollywood", "Chai time", "Party", "Exam season")
+                .mapIndexed { i, name -> PanelTab("pack:$i", name, icon = models[i % models.size]) }
+        runDesktopComposeUiTest(720, 620) {
+            mainClock.autoAdvance = false
+            setContent {
+                CompositionLocalProvider(LocalDensity provides Density(2f)) {
+                    var selected by remember { mutableStateOf("for_you") }
+                    var searching by remember { mutableStateOf(false) }
+                    var query by remember { mutableStateOf("") }
+                    KeyboardPanel(tabs, selected, if (searching) stickers.take(5) else stickers, searching, query,
+                        onSelectTab = { selected = it }, onSearching = { searching = it }, onQuery = { query = it },
+                        onSend = {}, onSwitchKeyboard = {}, modifier = Modifier.fillMaxSize())
+                }
+            }
+            settle(1); shot("20-keyboard")
+            step { onAllNodes(hasContentDescription("Office Ke Dukh") and hasClickAction()).onFirst().performClick() }; settle(1)
+            shot("21-keyboard-pack-tab")
+            step { onAllNodes(hasContentDescription("Kya baat hai") and hasClickAction()).onFirst().performTouchInput { longClick() } }; settle(1)
+            shot("22-keyboard-preview")
+            step { onAllNodes(hasText("Send") and hasClickAction()).onFirst().performClick() }; settle(1)
+            tap("🔍"); settle(1)
+            listOf("c", "h", "a").forEach { key -> step { onAllNodes(hasText(key) and hasClickAction()).onFirst().performClick() } }
+            settle(1); shot("23-keyboard-search")
+        }
     }
 
     private fun app(script: ComposeUiTest.(Library) -> Unit) {

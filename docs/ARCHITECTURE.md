@@ -49,6 +49,22 @@ GIFs → animated) → `Library.addSticker` (SHA-256 exact dedup + dHash near-du
 match frame count and duration) → `packImported` (original pack names with ≥4 stickers become packs; the rest merge
 into "From WhatsApp" packs of 30, static/animated apart).
 
+### Words for stickers that arrive without any (auto tags)
+Received WhatsApp stickers are named like `STK-20241027-WA0008` and carry at most three emojis. (On the owner's
+phone, 791 of 793 had no words at all, so search found nothing.) `AutoTagWorker` runs after imports and at app start.
+It reads each sticker on the device with ML Kit, whose models come from Google Play services; nothing is uploaded:
+- Latin and Devanagari text recognition, on a mid-grey background so white captions with black outlines both read;
+- image labels.
+
+`core/AutoTags` turns what was read into search words:
+- the caption text;
+- a rough Devanagari→Latin romanization, so typing "kya baat" finds "क्या बात";
+- Hinglish words for labels ("Smile" → khush) and for WhatsApp's emojis (😡 → gussa, angry).
+
+The words go to `sticker.auto_tags` (migration `2.sqm`), separate from the user's tags. The caption becomes the
+name only when the sticker has none, or only a file name. File names never show as names
+(`AutoTags.isMachineName`), including in WhatsApp's accessibility text and the companion keyboard.
+
 ## Backend (`backend/`)
 - `supabase/migrations` — schema, RLS, views, RPCs (see the SQL header for the data flow).
 - `supabase/functions/intake` — collector endpoint (token, magic bytes, dedup, takedown check).

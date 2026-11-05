@@ -79,7 +79,8 @@ class SyncProvider : ContentProvider() {
                     limit = uri.getQueryParameter("limit")?.toIntOrNull()?.coerceIn(1, 400) ?: 120,
                 )
                 library.stickers(filter).forEach {
-                    addRow(arrayOf<Any>(it.id, it.kind.name, it.label, it.tags, it.emojis, if (it.favorite) 1 else 0))
+                    // Names only: WhatsApp file names ("STK-…-WA0008") would show up in the companion's keyboard.
+                    addRow(arrayOf<Any>(it.id, it.kind.name, app.stickerdock.core.AutoTags.displayName(it.label).ifBlank { it.autoCaption }, it.tags, it.emojis, if (it.favorite) 1 else 0))
                 }
             }
             PENDING -> MatrixCursor(arrayOf("id", "pack_id", "pack_name", "package")).apply {
@@ -152,6 +153,7 @@ class SyncProvider : ContentProvider() {
                 library.setImportState(session, "DONE")
                 val totals = library.importTotals(session)
                 graph.events.record("sync", "companion import done: ${totals.added} added, ${totals.duplicates} dup, ${totals.rejected} rejected, $packs packs")
+                if (totals.added > 0) app.stickerdock.android.tags.AutoTagWorker.enqueue(requireNotNull(context))
                 Bundle().apply {
                     putInt("added", totals.added); putInt("duplicates", totals.duplicates)
                     putInt("rejected", totals.rejected); putInt("packs", packs)

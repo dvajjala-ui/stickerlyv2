@@ -1,0 +1,4 @@
+-- v4: the caption the phone read is kept apart from the user's name (label), and auto tags carry the version of the
+-- rules that made them, so improved rules re-read stickers by themselves.
+ALTER TABLE sticker ADD COLUMN auto_caption TEXT NOT NULL DEFAULT '';
+ALTER TABLE sticker ADD COLUMN auto_tag_version INTEGER NOT NULL DEFAULT 0;

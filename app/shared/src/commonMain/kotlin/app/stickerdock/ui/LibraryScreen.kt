@@ -63,6 +63,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import app.stickerdock.core.AutoTags
 import app.stickerdock.core.Rating
 import app.stickerdock.core.StickerKind
 import app.stickerdock.library.StickerFilter
@@ -249,12 +250,16 @@ internal fun Modifier.clickableRow(onClick: () -> Unit): Modifier = this.clickab
 fun StickerSheet(app: AppModel, item: StickerItem, onDismiss: () -> Unit, onAddToPack: () -> Unit, scope: CoroutineScope) {
     val library = app.library
     val snackbar = LocalSnackbar.current
-    var label by remember(item.id) { mutableStateOf(item.label) }
+    // WhatsApp file names ("STK-2024…-WA0008") aren't names; start the field empty instead.
+    val shownName = remember(item.id) { AutoTags.displayName(item.label) }
+    var label by remember(item.id) { mutableStateOf(shownName) }
     var tags by remember(item.id) { mutableStateOf(item.tags) }
     var emojis by remember(item.id) { mutableStateOf(item.emojis.replace(",", " ")) }
     val inPacks = remember(item.id) { library.packsContaining(item.id) }
     val close = {
-        if (label != item.label || tags != item.tags || emojis != item.emojis.replace(",", " ")) library.updateMeta(item.id, label, tags, emojis)
+        if (label != shownName || tags != item.tags || emojis != item.emojis.replace(",", " ")) {
+            library.updateMeta(item.id, if (label.isBlank() && label == shownName) item.label else label, tags, emojis)
+        }
         onDismiss()
     }
     ModalBottomSheet(onDismissRequest = close) {

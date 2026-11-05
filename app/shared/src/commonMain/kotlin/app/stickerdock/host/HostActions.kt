@@ -95,4 +95,8 @@ interface HostActions {
      * duplicate finder sees them. Blocking; call off the main thread. Returns how many were hashed.
      */
     fun backfillHashes(): Int = 0
+    /** True where the phone can read words on stickers itself (Android: ML Kit, on device). */
+    val canAutoTag: Boolean get() = false
+    /** Starts or resumes that reading in the background. */
+    fun startAutoTagging() {}
 }

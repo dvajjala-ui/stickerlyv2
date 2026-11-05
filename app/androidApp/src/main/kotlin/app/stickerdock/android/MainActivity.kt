@@ -21,7 +21,11 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         val graph = AppGraph.get(this)
         host = AndroidHost(this, graph)
-        if (savedInstanceState == null) handleShare(intent)
+        if (savedInstanceState == null) {
+            handleShare(intent)
+            // Pick up stickers whose words haven't been read yet (older imports, or a pass that was cut short).
+            app.stickerdock.android.tags.AutoTagWorker.enqueue(this)
+        }
         val discover = DiscoverClient.create(BuildConfig.DISCOVER_URL, BuildConfig.DISCOVER_ANON_KEY)
         setContent {
             if (Dual.isCompanion(this)) CompanionScreen(host)

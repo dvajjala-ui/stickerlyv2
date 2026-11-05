@@ -26,6 +26,12 @@ both of your WhatsApps. It is also installed inside Dual Messenger.
    Try it in the Dual Messenger WhatsApp too.
 5. **My stickers → Add stickers → Make a sticker from a photo** → remove background, add a caption, save.
 6. Phone setting I changed for the night: Developer options → **Stay awake** → turn off.
+7. New since the phone dropped off (all built and unit/snapshot-tested, not yet seen on your phone):
+   - **Settings → Words on stickers**: the phone reads the text printed on your stickers (Hindi and English) and what
+     they show, on the device, so search finds them. Watch it count up, then search "kya", "gussa", "chai".
+   - **Settings → Find duplicates**: same picture saved twice (from both WhatsApps); merge keeps pack places.
+   - **Sticker → ⋮**: Share, Mark 18+, Move to private vault. **My stickers → Newest ▾** to sort.
+   - **Keyboard**: pack tabs are now pack covers; long-press a sticker to preview before sending.
 
 ## 0b. HandNavigate → StickerDock v2
 In `D:\5. GitUploaded\hand` the branch `stickerdock-v2-intake` (local, not pushed) adds a v2 sink: set

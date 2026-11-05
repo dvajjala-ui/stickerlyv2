@@ -14,7 +14,8 @@ import java.io.File
 
 data class KeyboardSticker(val id: String, val animated: Boolean, val label: String, val model: Any)
 
-data class KeyboardTab(val key: String, val title: String)
+/** [symbol] replaces the title on fixed tabs; pack tabs show their cover [icon]. */
+data class KeyboardTab(val key: String, val title: String, val symbol: String? = null, val icon: Any? = null)
 
 /** What the keyboard shows. Main profile reads the library; a companion copy reads it over sync. */
 interface KeyboardData {
@@ -47,8 +48,11 @@ class LocalKeyboardData(private val context: Context) : KeyboardData {
     private val adult get() = KeyboardData.adultEnabled(context)
 
     override fun tabs(): List<KeyboardTab> =
-        listOf(KeyboardTab(KeyboardData.FOR_YOU, "For you"), KeyboardTab(KeyboardData.FAVORITES, "★"), KeyboardTab(KeyboardData.RECENT, "Recent")) +
-            graph.library.packs(includeAdult = adult).filter { it.count > 0 }.map { KeyboardTab("pack:${it.id}", it.name) }
+        listOf(KeyboardTab(KeyboardData.FOR_YOU, "For you"), KeyboardTab(KeyboardData.FAVORITES, "Favourites", symbol = "★"),
+            KeyboardTab(KeyboardData.RECENT, "Recent", symbol = "🕘")) +
+            graph.library.packs(includeAdult = adult).filter { it.count > 0 }.map { pack ->
+                KeyboardTab("pack:${pack.id}", pack.name, icon = pack.trayStickerId?.let { graph.files.file(it) }?.takeIf { it.isFile })
+            }
 
     override fun stickers(tab: KeyboardTab, typedContext: String): List<KeyboardSticker> {
         val lib = graph.library
@@ -80,7 +84,7 @@ class CompanionKeyboardData(private val context: Context) : KeyboardData {
     private val base = "content://${Dual.HUB_USER}@${context.packageName}.sync"
     private val cache = File(context.cacheDir, "shared").apply { mkdirs() }
 
-    override fun tabs() = listOf(KeyboardTab(KeyboardData.FOR_YOU, "For you"), KeyboardTab(KeyboardData.FAVORITES, "★"))
+    override fun tabs() = listOf(KeyboardTab(KeyboardData.FOR_YOU, "For you"), KeyboardTab(KeyboardData.FAVORITES, "Favourites", symbol = "★"))
 
     override fun stickers(tab: KeyboardTab, typedContext: String): List<KeyboardSticker> {
         val q = when {

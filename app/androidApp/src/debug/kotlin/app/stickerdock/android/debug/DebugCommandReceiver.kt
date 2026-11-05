@@ -129,6 +129,30 @@ class DebugCommandReceiver : BroadcastReceiver() {
                         }
                         log.record("debug", "wipe purged ${lib.purgeDeleted(Long.MAX_VALUE)} stickers")
                     }
+                    "autotag" -> {
+                        // Read words on the next N stickers now and log what was read (OCR quality check on real stickers).
+                        val n = intent.getIntExtra("n", 20)
+                        app.stickerdock.android.tags.AutoTagger(context).use { tagger ->
+                            tagger.requestModels()
+                            graph.library.autoTagQueue(n).forEach { job ->
+                                runCatching { graph.library.files.read(job.id)?.let(tagger::read) }
+                                    .onSuccess { reading ->
+                                        graph.library.applyAutoTags(job.id, reading?.allText.orEmpty(), reading?.labels.orEmpty(), reading?.caption)
+                                        log.record("autotag", "${job.id.take(8)} read='${reading?.caption?.replace('\n', ' ')?.take(60)}' " +
+                                            "labels=${reading?.labels?.take(5)} → title='${graph.library.sticker(job.id)?.title}'")
+                                    }
+                                    .onFailure { log.record("autotag", "${job.id.take(8)} failed: ${it.javaClass.simpleName}: ${it.message}") }
+                            }
+                            log.record("autotag", "progress ${graph.library.autoTagProgress()}")
+                        }
+                    }
+                    "autotag_clean_labels" -> {
+                        // Dev phones only: the first auto-tag rules (before v2) wrote captions into the user's name field.
+                        // Imported stickers had only file names before that, so clearing those names loses nothing.
+                        graph.driver.execute(null, "UPDATE sticker SET label = '' WHERE origin = 'IMPORT' AND auto_tagged_at IS NOT NULL " +
+                            "AND auto_tag_version < 2", 0)
+                        log.record("debug", "cleared names written by the first auto-tag pass; ${graph.library.autoTagProgress()}")
+                    }
                     "stats" -> {
                         val packs = graph.library.packs(includeAdult = true)
                         log.record("debug", "stats stickers=${graph.library.counts()} packs=${packs.size} " +

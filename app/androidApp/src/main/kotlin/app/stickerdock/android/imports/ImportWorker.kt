@@ -49,6 +49,7 @@ class ImportWorker(context: Context, params: WorkerParameters) : CoroutineWorker
                 else -> error("Unknown import mode")
             }
             graph.events.record("import", summary.describe())
+            if (summary.added > 0) app.stickerdock.android.tags.AutoTagWorker.enqueue(applicationContext)
             Result.success(workDataOf(P_LABEL to summary.describe(), P_ADDED to summary.added, P_DUP to summary.duplicates,
                 P_REJECTED to summary.rejected, P_PAUSED to summary.paused))
         } catch (e: Exception) {

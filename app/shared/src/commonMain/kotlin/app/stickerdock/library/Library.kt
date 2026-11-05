@@ -3,6 +3,7 @@ package app.stickerdock.library
 import app.cash.sqldelight.coroutines.asFlow
 import app.cash.sqldelight.coroutines.mapToList
 import app.cash.sqldelight.coroutines.mapToOneOrNull
+import app.stickerdock.core.AutoTags
 import app.stickerdock.core.Rating
 import app.stickerdock.core.Sha256
 import app.stickerdock.core.StickerKind
@@ -47,9 +48,17 @@ data class StickerItem(
     val originRef: String?,
     val favorite: Boolean,
     val createdAt: Long,
+    /** Words the phone read on the sticker (search and WhatsApp emoji hints only). */
+    val autoTags: String = "",
+    /** Caption the phone read on the sticker; used while the user hasn't named it. */
+    val autoCaption: String = "",
 ) {
-    val title: String get() = label.ifBlank { tags.substringBefore(' ').ifBlank { "Sticker" } }
-    val whatsAppEmojis: List<String> get() = Tags.whatsAppEmojis(emojis, label, tags)
+    /** The user's name, else the caption read on it, else its tags. WhatsApp file names ("STK-…-WA0008") don't count. */
+    val description: String get() = AutoTags.displayName(label).ifBlank { autoCaption }.ifBlank { tags }
+
+    /** What to call the sticker on screen. */
+    val title: String get() = AutoTags.displayName(label).ifBlank { autoCaption }.ifBlank { tags.substringBefore(' ').ifBlank { "Sticker" } }
+    val whatsAppEmojis: List<String> get() = Tags.whatsAppEmojis(emojis, AutoTags.displayName(label).ifBlank { autoCaption }, "$tags $autoTags")
 }
 
 data class PackInfo(
@@ -478,6 +487,9 @@ class Library(
 
     fun setRemoteVersion(packId: String, version: Long) { q.setPackRemoteVersion(version, now(), packId) }
 
+    /** Discover packs: whether new stickers the publisher adds arrive by themselves. */
+    fun setFollowUpdates(packId: String, follow: Boolean) { q.setPackFollow(follow, now(), packId) }
+
     fun remoteVersion(packId: String): Long? = q.packById(packId).executeAsOneOrNull()?.remote_version
 
     /** Deletes the pack only; its stickers stay in the library. */
@@ -485,6 +497,29 @@ class Library(
         q.deletePack(packId)
         notify(listOf(packId))
     }
+
+    // ---------------- auto tags ----------------
+
+    data class AutoTagJob(val id: String, val emojis: String, val label: String)
+    data class AutoTagProgress(val done: Int, val total: Int) { val remaining get() = total - done }
+
+    /** Stickers whose words haven't been read with the current rules yet (never-read first, then most used). */
+    fun autoTagQueue(limit: Int = 50): List<AutoTagJob> =
+        q.autoTagQueue(AutoTags.VERSION.toLong(), limit.toLong()).executeAsList().map { AutoTagJob(it.id, it.emojis, it.label) }
+
+    /**
+     * Stores what the phone read on a sticker: search words and the caption, both apart from the user's own name and
+     * tags (shown only while the user hasn't named it). Call with empty text and labels when a sticker can't be read,
+     * so it isn't retried until the rules change ([AutoTags.VERSION]).
+     */
+    fun applyAutoTags(id: String, recognizedText: String, imageLabels: List<String>, captionText: String? = null) {
+        val row = q.stickerById(id).executeAsOneOrNull() ?: return
+        val words = AutoTags.build(recognizedText, imageLabels, row.emojis)
+        val caption = AutoTags.captionFrom(captionText ?: recognizedText)?.let(Tags::cleanLabel).orEmpty()
+        q.setAutoTags(words, caption, now(), AutoTags.VERSION.toLong(), id)
+    }
+
+    fun autoTagProgress(): AutoTagProgress = q.autoTagCounts(AutoTags.VERSION.toLong()).executeAsOne().let { AutoTagProgress(it.done.toInt(), it.total.toInt()) }
 
     // ---------------- duplicates ----------------
 
@@ -654,7 +689,7 @@ class Library(
 
     private fun Sticker.toItem() = StickerItem(
         id, sha256, StickerKind.valueOf(kind), Rating.valueOf(rating), vault, byte_size, frame_count.toInt(),
-        label, tags, emojis, origin, origin_ref, favorite, created_at,
+        label, tags, emojis, origin, origin_ref, favorite, created_at, auto_tags, auto_caption,
     )
 
     private fun Pack.toInfo(count: Int) = PackInfo(

@@ -34,3 +34,22 @@ platform-tools (adb 1.0.41), Gradle 9.6.1 (sha256 verified). Gradle user home `D
 2. K1 keyboard check (`tools/keyboard-check.sh`), restore Samsung keyboard afterwards.
 3. Integrate agents' work; local Discover dev server so the phone shows worker dry-run stickers.
 4. Owner-present: WhatsApp Add dialogs (user 0, Dual via relay chooser), keyboard in WhatsApp (MIME list).
+
+## 2026-11-05 — session 1, second half (07:00 →)
+Commits since the first half, newest last (evidence in STATUS.md):
+- Keyboard search with its own letter pad; keys kept above Android 16's edge-to-edge nav bar.
+- Shelf management on the WhatsApp tab ("N of 10", warning, remove with undo).
+- Release readiness: `qa` build type (R8 + debug hooks) run on the phone; fixed ML Kit under R8 and a keyboard
+  teardown crash; `tools/release.ps1` signing script; SQLDelight v1 schema snapshot now committed.
+- Discover infinite scroll / pull to refresh / retry (`FeedPager`, unit-tested).
+- **Phone dropped off USB at 07:59** (Windows no longer sees it). Everything after that is verified with JVM tests and
+  headless Compose Desktop snapshots (`UiSnapshotTest`) instead of the phone.
+- Library sort (newest / most used / oldest / A–Z) and a duplicate finder with merge + undo.
+- Share stickers; mark 18+; move to / out of the private vault (single and bulk).
+- Worker quality gate (helper agent; re-run here: pytest 198/198) and the PostgREST 1,000-row paging fix.
+- Auto tags: on-device text recognition (Latin + Devanagari), image labels, emoji words → `auto_tags`; WhatsApp
+  file names no longer shown as names. Needed because 791 of 793 stickers on the phone had no words.
+
+**When the phone is back:** install the dev build, `--es cmd autotag --ei n 30` (logs what OCR read), open
+Settings → Words on stickers, search "kya" / "gussa" in the library and the keyboard, open Find duplicates,
+scroll Discover past 60, then the owner checklist in OWNER_REQUESTS.md.

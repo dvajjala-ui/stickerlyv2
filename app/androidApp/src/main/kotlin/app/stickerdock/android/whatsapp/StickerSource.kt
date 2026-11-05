@@ -48,7 +48,7 @@ class LocalStickerSource(private val context: Context) : StickerSource {
         val pack = graph.library.shelfPacks().firstOrNull { it.id == packId } ?: return emptyList()
         val limit = if (pack.kind == StickerKind.ANIMATED) StickerRules.ANIMATED_ACCESSIBILITY_MAX else StickerRules.STATIC_ACCESSIBILITY_MAX
         return graph.library.packStickers(packId).map {
-            ShelfSticker(it.id, it.whatsAppEmojis, it.label.ifBlank { it.tags }.take(limit))
+            ShelfSticker(it.id, it.whatsAppEmojis, it.description.take(limit))
         }
     }
 

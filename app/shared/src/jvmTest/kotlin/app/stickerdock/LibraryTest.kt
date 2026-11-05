@@ -253,6 +253,26 @@ class LibraryTest {
         assertTrue(lib.packsLeftByVaultMove(listOf(b), false).isEmpty())
     }
 
+    @Test fun autoTagsMakeImportedStickersSearchableWithoutTouchingUserWords() {
+        val imported = addStatic(1, label = "STK-20241027-WA0008")
+        val named = addStatic(2)
+        lib.updateMeta(named, "Mera naam", "office", "")
+        assertEquals("Sticker", lib.sticker(imported)!!.title, "file names don't show as names")
+        assertEquals(2, lib.autoTagQueue().size)
+        lib.applyAutoTags(imported, "Kya baat hai\nboss", listOf("Smile"))
+        lib.applyAutoTags(named, "Different words", emptyList())
+        assertEquals("Kya baat hai boss", lib.sticker(imported)!!.title, "the caption shows while there is no name")
+        assertEquals("STK-20241027-WA0008", lib.sticker(imported)!!.label, "the stored name itself is never rewritten")
+        assertEquals("Mera naam", lib.sticker(named)!!.title, "the user's name wins over a caption")
+        assertEquals("Different words", lib.sticker(named)!!.autoCaption)
+        assertEquals("office", lib.sticker(named)!!.tags, "the user's tags stay")
+        assertEquals(listOf(imported), lib.stickers(StickerFilter(query = "khush")).map { it.id })
+        assertEquals(listOf(named), lib.stickers(StickerFilter(query = "different")).map { it.id })
+        assertTrue(lib.autoTagQueue().isEmpty())
+        assertEquals(Library.AutoTagProgress(2, 2), lib.autoTagProgress())
+        assertEquals(listOf(imported), lib.stickers(StickerFilter(query = "kya baat")).map { it.id }, "captions are searchable")
+    }
+
     @Test fun deletingPackKeepsStickersAndPurgeRemovesFiles() {
         val pack = lib.createPack("Temp", StickerKind.STATIC)
         val ids = (1..3).map { addStatic(it) }

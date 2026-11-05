@@ -81,6 +81,13 @@ fun PackScreen(app: AppModel, packId: String, onBack: () -> Unit) {
                     DropdownMenu(menu, { menu = false }) {
                         DropdownMenuItem({ Text("Rename") }, { menu = false; rename = true })
                         DropdownMenuItem({ Text("Share pack") }, { menu = false; host.sharePack(packId) })
+                        if (current.remoteId != null) DropdownMenuItem(
+                            { Text(if (current.followUpdates) "Stop getting new stickers" else "Get new stickers automatically") }, {
+                                menu = false
+                                library.setFollowUpdates(packId, !current.followUpdates)
+                                scope.notify(snackbar, if (current.followUpdates) "This pack won't change by itself any more"
+                                    else "New stickers from Discover will arrive in this pack")
+                            })
                         DropdownMenuItem({ Text("Refresh in WhatsApp") }, { menu = false; library.bump(packId); scope.notify(snackbar, "WhatsApp will reload this pack") })
                         if (current.onShelf) DropdownMenuItem({ Text("Stop offering to WhatsApp") }, {
                             menu = false
