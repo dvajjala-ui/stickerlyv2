@@ -8,6 +8,9 @@ from typing import Any
 from ..imaging.metrics import hamming
 
 NEAR_DUPLICATE = 8
+# Finished stickers share layout (margins, card border, caption style), so their visible-area pHash
+# is compared more strictly: re-encodes, re-crops and added borders of one picture land at 0-4 bits.
+RENDER_NEAR_DUPLICATE = 6
 _PHASH = re.compile(r"^[0-9a-f]{16}$")
 
 
@@ -38,13 +41,14 @@ class TakedownIndex:
         return None
 
 
-def nearest(phash: str, known: Iterable[tuple[str, str]], exclude: str | None = None) -> tuple[str, int] | None:
-    """Closest known fingerprint within NEAR_DUPLICATE bits, as (label, distance)."""
+def nearest(phash: str, known: Iterable[tuple[str, str]], exclude: str | None = None,
+            limit: int = NEAR_DUPLICATE) -> tuple[str, int] | None:
+    """Closest known fingerprint within `limit` bits (default NEAR_DUPLICATE), as (label, distance)."""
     best: tuple[str, int] | None = None
     for label, other in known:
         if label == exclude or not valid_phash(other):
             continue
         distance = hamming(phash, other)
-        if distance <= NEAR_DUPLICATE and (best is None or distance < best[1]):
+        if distance <= limit and (best is None or distance < best[1]):
             best = (label, distance)
     return best

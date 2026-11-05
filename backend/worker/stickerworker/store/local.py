@@ -40,6 +40,7 @@ create table if not exists stickers (
   emojis text not null default '[]', description text, file_path text not null unique,
   sha256 text not null unique, phash text, bytes integer not null, ai_generated integer not null default 1,
   credit text, quality integer, trend_id text, status text not null default 'draft', review_note text,
+  quality_score integer, quality_reasons text not null default '[]', quality_signals text, render_phash text,
   search_text text, published_at text, created_at text not null, updated_at text not null);
 create table if not exists packs (
   id text primary key, slug text unique, title text not null, description text, kind text not null,
@@ -60,10 +61,16 @@ create table if not exists worker_runs (id integer primary key autoincrement, st
   finished_at text, stage text not null, ok integer, summary text);
 """
 
+# Columns added after the first release, applied to existing local databases (additive, like the SQL migrations).
+ADDED_COLUMNS: dict[str, dict[str, str]] = {
+    "stickers": {"quality_score": "integer", "quality_reasons": "text not null default '[]'",
+                 "quality_signals": "text", "render_phash": "text"},
+}
+
 JSON_COLUMNS: dict[str, frozenset[str]] = {
     "settings": frozenset({"value"}),
     "source_images": frozenset({"prescreen", "analysis", "mood", "tags", "emojis"}),
-    "stickers": frozenset({"tags", "emojis", "credit"}),
+    "stickers": frozenset({"tags", "emojis", "credit", "quality_reasons", "quality_signals"}),
     "trends": frozenset({"keywords", "source_urls"}),
     "worker_runs": frozenset({"summary"}),
 }
@@ -87,6 +94,7 @@ class LocalStore:
         self.db = sqlite3.connect(self.root / "local.sqlite3")
         self.db.row_factory = sqlite3.Row
         self.db.executescript(SCHEMA)
+        self._migrate()
         self._seed()
 
     def close(self) -> None:
@@ -142,10 +150,17 @@ class LocalStore:
             cursor = self.db.execute(f"update {table} set {assignments} where {key} = ?", (*data.values(), value))
         return cursor.rowcount
 
+    def _migrate(self) -> None:
+        for table, columns in ADDED_COLUMNS.items():
+            have = {r[1] for r in self.db.execute(f"pragma table_info({table})")}
+            with self.db:
+                for column, declaration in columns.items():
+                    if column not in have:
+                        self.db.execute(f"alter table {table} add column {column} {declaration}")
+
     def _seed(self) -> None:
-        if not self.db.execute("select 1 from settings limit 1").fetchone():
-            for key, value in DEFAULT_ROWS.items():
-                self._insert("settings", {"key": key, "value": value})
+        for key, value in DEFAULT_ROWS.items():  # like the migrations: add missing keys, keep owner edits
+            self._insert("settings", {"key": key, "value": value}, ignore=True)
         if not self.db.execute("select 1 from protected_people limit 1").fetchone():
             for name, note in DEFAULT_PROTECTED_PEOPLE:
                 self._insert("protected_people", {"name": name, "note": note})
@@ -246,13 +261,22 @@ class LocalStore:
         return self._file(bucket, path)
 
     # ------------------------------------------------------------ stickers
+    @staticmethod
+    def _check_sticker(row: Row) -> None:
+        """The stickers table checks of the SQL migrations."""
+        score = row.get("quality_score")
+        if ("status" in row and row["status"] not in vocab.STICKER_STATUSES) or \
+                (score is not None and not 0 <= score <= 100):
+            raise StoreError("sticker violates table checks")
+
     def insert_sticker(self, row: Row) -> Row:
         stamp = self._stamp()
         full: Row = {"id": str(uuid.uuid4()), "rating": "general", "category": "reactions", "tags": [],
-                     "emojis": [], "ai_generated": True, "status": "draft", "created_at": stamp,
-                     "updated_at": stamp, **row}
+                     "emojis": [], "ai_generated": True, "status": "draft", "quality_reasons": [],
+                     "created_at": stamp, "updated_at": stamp, **row}
         if len(full["emojis"]) > 3 or not 0 < full["bytes"] <= 500_000:
             raise StoreError("sticker violates table checks")
+        self._check_sticker(full)
         full["search_text"] = " ".join(str(v) for v in (full.get("caption"), full.get("description"),
                                                          " ".join(full["tags"]), " ".join(full["emojis"]),
                                                          full["category"]) if v)
@@ -268,6 +292,8 @@ class LocalStore:
         return rows[0]
 
     def update_sticker(self, sticker_id: str, fields: Row) -> None:
+        """Admin emulation, e.g. approving a held sticker: update_sticker(id, {"status": "published"})."""
+        self._check_sticker(fields)
         stamp = self._stamp()
         if fields.get("status") == "published" and not self.sticker(sticker_id).get("published_at"):
             fields = {**fields, "published_at": stamp}
@@ -282,6 +308,12 @@ class LocalStore:
     def published_stickers(self, limit: int = 5000) -> list[Row]:
         return self._select("stickers", "select * from stickers where status = 'published' "
                                         "order by published_at desc, id desc limit ?", (limit,))
+
+    def render_fingerprints(self, limit: int) -> list[tuple[str, str, str | None]]:
+        rows = self.db.execute("select id, render_phash, source_id from stickers where render_phash is not null "
+                               "and status in ('published', 'draft') order by created_at desc limit ?",
+                               (limit,)).fetchall()
+        return [(r[0], r[1], r[2]) for r in rows]
 
     def stickers_by_id(self, ids: Sequence[str]) -> list[Row]:
         values = list(ids)
@@ -375,8 +407,11 @@ class LocalStore:
     def ai_usage_since(self, since: datetime) -> dict[str, int]:
         stamp = iso(since)
         analyzed = self.db.execute("select count(*) from source_images where analyzed_at >= ?", (stamp,)).fetchone()[0]
-        failed = self.db.execute("select count(*) from ai_calls where purpose = ? and ok = 0 and status = 200 and "
-                                 "at >= ?", (vocab.VISION_PURPOSE, stamp)).fetchone()[0]
+        # Billed vision calls not counted as analysed sources: unusable analyses, and quality judgements
+        # (one image each, usable or not).
+        failed = self.db.execute("select count(*) from ai_calls where status = 200 and at >= ? and "
+                                 "((purpose = ? and ok = 0) or purpose = ?)",
+                                 (stamp, vocab.VISION_PURPOSE, vocab.QUALITY_PURPOSE)).fetchone()[0]
         marks = ",".join("?" for _ in vocab.TEXT_PURPOSES)
         text = self.db.execute(f"select count(*) from ai_calls where purpose in ({marks}) and status = 200 and at >= ?",
                                (*vocab.TEXT_PURPOSES, stamp)).fetchone()[0]

@@ -96,6 +96,64 @@ def test_insecure_url_refused():
         SupabaseStore("http://project.supabase.co", KEY)
 
 
+def test_judge_calls_are_billed_vision_and_keep_three_count_requests():
+    store, seen = make(lambda r: httpx.Response(200, json=[], headers={"content-range": "0-0/3"}))
+    assert store.ai_usage_since(datetime(2026, 11, 4, 18, 30, tzinfo=UTC)) == {"vision": 6, "text": 3}
+    billed = seen[1].url.params
+    assert billed["or"] == "(and(purpose.eq.analyze,ok.is.false),purpose.eq.quality_judge)"
+    assert billed["status"] == "eq.200" and len(seen) == 3
+
+
+def test_render_fingerprints_page_through_published_and_draft_stickers():
+    def handler(request: httpx.Request) -> httpx.Response:
+        offset = int(request.url.params["offset"])
+        rows = [{"id": f"s{offset + i}", "render_phash": "0123456789abcdef", "source_id": None}
+                for i in range(1000 if offset == 0 else 5)]
+        return httpx.Response(200, json=rows)
+    store, seen = make(handler)
+    rows = store.render_fingerprints(5000)
+    assert len(rows) == 1005 and rows[0] == ("s0", "0123456789abcdef", None)
+    query = seen[0].url.params
+    assert query["select"] == "id,render_phash,source_id" and query["render_phash"] == "not.is.null"
+    assert query["status"] == "in.(published,draft)" and query["order"] == "created_at.desc"
+    assert [r.url.params["offset"] for r in seen] == ["0", "1000"]
+
+
+def test_prescreen_fingerprints_page_past_postgrest_max_rows():
+    # PostgREST answers at most 1000 rows per request; duplicate checks must still see older images.
+    def handler(request: httpx.Request) -> httpx.Response:
+        offset = int(request.url.params["offset"])
+        table = request.url.path.rsplit("/", 1)[-1]
+        count = 1000 if offset == 0 else 7
+        rows = [{"id": f"{table[0]}{offset + i}", "phash": "f" * 16} for i in range(count)]
+        return httpx.Response(200, json=rows)
+    store, seen = make(handler)
+    rows = store.fingerprints(5000)
+    assert sum(1 for key, _ in rows if key.startswith("source:")) == 1007
+    assert sum(1 for key, _ in rows if key.startswith("sticker:")) == 1007
+    assert [(r.url.path.rsplit("/", 1)[-1], r.url.params["offset"]) for r in seen] == [
+        ("source_images", "0"), ("source_images", "1000"), ("stickers", "0"), ("stickers", "1000")]
+    assert seen[0].url.params["status"] == "not.in.(rejected,failed)" and seen[2].url.params["status"] == "neq.rejected"
+
+
+def test_held_sticker_insert_carries_the_gate_fields():
+    store, seen = make(lambda r: httpx.Response(201, json=[{"id": "x", "status": "held"}]))
+    store.insert_sticker({"id": "x", "status": "held", "quality_score": 41, "quality_reasons": ["blurry"],
+                          "quality_signals": {"sharpness": 3.1}, "render_phash": "0123456789abcdef"})
+    body = json.loads(seen[0].content)[0]
+    assert body["status"] == "held" and body["quality_score"] == 41 and body["quality_reasons"] == ["blurry"]
+    assert body["quality_signals"] == {"sharpness": 3.1} and body["render_phash"] == "0123456789abcdef"
+
+
+def test_dry_run_counts_planned_stickers_per_status(tmp_path):
+    store, _ = make(lambda r: httpx.Response(200, json=[]))
+    dry = DryRunStore(store, tmp_path / "preview")
+    for status in ("published", "held", "held"):
+        dry.insert_sticker({"file_path": f"{status}.webp", "status": status})
+    assert dry.summary()["insert_sticker"] == 3
+    assert dry.summary()["stickers_held"] == 2 and dry.summary()["stickers_published"] == 1
+
+
 def test_dry_run_store_sends_only_reads(tmp_path):
     store, seen = make(lambda r: httpx.Response(200, json=[]))
     dry = DryRunStore(store, tmp_path / "preview")

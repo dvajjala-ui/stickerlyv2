@@ -8,12 +8,16 @@ from PIL import Image
 from ..analysis import Crop
 from .clip import to_canvas
 from .layout import CANVAS, INNER, MARGIN, Box, blank, crop_to, is_cutout, map_crop, place, subject_visual, trim_borders
-from .text import CaptionLayout, draw_caption, layout_caption
+from .text import CaptionLayout, draw_caption, ink_box, layout_caption
 
 CAPTION_MAX_HEIGHT = 168
 GAP = 6
 OVERLAY_MAX_OVERLAP = 0.12  # share of the subject a caption may cover before we stack instead
 FULL = Box(MARGIN, MARGIN, CANVAS - MARGIN, CANVAS - MARGIN)
+
+
+def _caption_box(layout: CaptionLayout | None, top: int | None) -> tuple[int, int, int, int] | None:
+    return ink_box(layout, top) if layout is not None and top is not None else None
 
 
 @dataclass
@@ -23,6 +27,22 @@ class Composed:
     layout: CaptionLayout | None = None
     caption_top: int | None = None
     position: str | None = None  # top | bottom | stacked-top | stacked-bottom
+
+    @property
+    def caption_box(self) -> tuple[int, int, int, int] | None:
+        """Where the caption was inked on the canvas (for the quality gate), None without a caption."""
+        return _caption_box(self.layout, self.caption_top)
+
+
+@dataclass
+class ComposedClip:
+    frames: list[Image.Image]
+    layout: CaptionLayout | None = None
+    caption_top: int | None = None
+
+    @property
+    def caption_box(self) -> tuple[int, int, int, int] | None:
+        return _caption_box(self.layout, self.caption_top)
 
 
 def limit_aspect(image: Image.Image, crop: Crop, max_aspect: float = 1.8) -> tuple[Image.Image, Crop]:
@@ -126,10 +146,10 @@ def cutout(subject: Image.Image, text: str | None) -> Composed | None:
     return Composed(canvas, plain, layout, top, "stacked-bottom")
 
 
-def clip_with_caption(frames: list[Image.Image], text: str | None) -> list[Image.Image] | None:
+def clip_composed(frames: list[Image.Image], text: str | None) -> ComposedClip | None:
     """Animated clip on the canvas; with a caption, the clip shrinks and the caption sits below."""
     if not text:
-        return to_canvas(frames)[0]
+        return ComposedClip(to_canvas(frames)[0])
     layout = layout_caption(text, INNER, CAPTION_MAX_HEIGHT)
     if layout is None:
         return None
@@ -137,4 +157,9 @@ def clip_with_caption(frames: list[Image.Image], text: str | None) -> list[Image
     top = min(CANVAS - MARGIN - layout.height, box[3] + GAP)
     for canvas in canvases:
         draw_caption(canvas, layout, top)
-    return canvases
+    return ComposedClip(canvases, layout, top)
+
+
+def clip_with_caption(frames: list[Image.Image], text: str | None) -> list[Image.Image] | None:
+    made = clip_composed(frames, text)
+    return made.frames if made is not None else None

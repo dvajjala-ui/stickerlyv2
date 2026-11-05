@@ -13,6 +13,8 @@ from .base import (
     CaptionRequest,
     PackName,
     PackNameRequest,
+    QualityInput,
+    QualityVerdict,
     TrendBrief,
     VisionInput,
 )
@@ -22,7 +24,8 @@ from .groq import GroqClient
 from .groq_ai import GroqAI
 
 __all__ = ["AI", "AIError", "AIInvalid", "AIUnavailable", "Budget", "BudgetExhausted", "CaptionRequest", "FakeAI",
-           "GroqAI", "PackName", "PackNameRequest", "TrendBrief", "VisionInput", "make_groq"]
+           "GroqAI", "PackName", "PackNameRequest", "QualityInput", "QualityVerdict", "TrendBrief", "VisionInput",
+           "make_groq"]
 
 
 def make_groq(env: Env, budget: Budget, ledger: Callable[[dict[str, Any]], None]) -> GroqAI:

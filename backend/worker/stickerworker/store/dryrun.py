@@ -2,10 +2,12 @@
 
 Claims become plain reads, so a dry run never leases, edits or uploads anything.
 Each stage sees the store as it is (stages do not see each other's planned writes).
+Planned stickers are also counted per status (`stickers_published`, `stickers_held`, ...).
 """
 from __future__ import annotations
 
 import uuid
+from collections import Counter
 from collections.abc import Callable
 from pathlib import Path, PurePosixPath
 from typing import Any
@@ -23,6 +25,7 @@ class DryRunStore:
         self.inner = inner
         self.preview_dir = Path(preview_dir)
         self.planned: list[tuple[str, Any]] = []
+        self.sticker_statuses: Counter[str] = Counter()
 
     def __getattr__(self, name: str) -> Any:
         if name in _RECORDED:
@@ -48,6 +51,7 @@ class DryRunStore:
 
     def insert_sticker(self, row: Row) -> Row:
         self.planned.append(("insert_sticker", row.get("file_path")))
+        self.sticker_statuses[str(row.get("status") or "draft")] += 1
         return dict(row)
 
     def insert_pack(self, row: Row) -> Row:
@@ -61,4 +65,5 @@ class DryRunStore:
         counts: dict[str, int] = {}
         for name, _ in self.planned:
             counts[name] = counts.get(name, 0) + 1
+        counts.update({f"stickers_{status}": n for status, n in sorted(self.sticker_statuses.items())})
         return counts

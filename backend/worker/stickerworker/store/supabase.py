@@ -160,12 +160,14 @@ class SupabaseStore:
         return found
 
     def fingerprints(self, limit: int) -> list[tuple[str, str]]:
-        sources = self._select("source_images", {
+        # PostgREST caps each response at max-rows (1000 by default), so page up to `limit` per table;
+        # a single limit=5000 request silently saw only the newest 1000.
+        sources = self._select_all("source_images", {
             "select": "id,phash", "phash": "not.is.null", "status": "not.in.(rejected,failed)",
-            "order": "collected_at.desc", "limit": str(limit)})
-        stickers = self._select("stickers", {
+            "order": "collected_at.desc"}, cap=limit)
+        stickers = self._select_all("stickers", {
             "select": "id,phash", "phash": "not.is.null", "status": "neq.rejected",
-            "order": "created_at.desc", "limit": str(limit)})
+            "order": "created_at.desc"}, cap=limit)
         return [(f"source:{r['id']}", r["phash"]) for r in sources] + \
                [(f"sticker:{r['id']}", r["phash"]) for r in stickers]
 
@@ -206,6 +208,12 @@ class SupabaseStore:
             rows += self._select("stickers", {"select": "id,status,quality,kind,rating,category,file_path",
                                               "id": _in(batch)})
         return rows
+
+    def render_fingerprints(self, limit: int) -> list[tuple[str, str, str | None]]:
+        rows = self._select_all("stickers", {
+            "select": "id,render_phash,source_id", "render_phash": "not.is.null", "status": "in.(published,draft)",
+            "order": "created_at.desc"}, cap=limit)
+        return [(r["id"], r["render_phash"], r.get("source_id")) for r in rows]
 
     # ------------------------------------------------------------ packs
     def packs(self) -> list[Row]:
@@ -260,8 +268,10 @@ class SupabaseStore:
 
     def ai_usage_since(self, since: datetime) -> dict[str, int]:
         stamp = iso(since)
+        # Billed vision calls beyond analysed sources: unusable analyses and quality judgements (one image each).
+        billed = f"(and(purpose.eq.{vocab.VISION_PURPOSE},ok.is.false),purpose.eq.{vocab.QUALITY_PURPOSE})"
         vision = self._count("source_images", {"analyzed_at": f"gte.{stamp}"}) + self._count("ai_calls", {
-            "purpose": f"eq.{vocab.VISION_PURPOSE}", "ok": "is.false", "status": "eq.200", "at": f"gte.{stamp}"})
+            "or": billed, "status": "eq.200", "at": f"gte.{stamp}"})
         text = self._count("ai_calls", {"purpose": _in(vocab.TEXT_PURPOSES), "status": "eq.200",
                                         "at": f"gte.{stamp}"})
         return {"vision": vision, "text": text}

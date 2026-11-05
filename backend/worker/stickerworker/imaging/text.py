@@ -179,6 +179,12 @@ def visible_units(layout: CaptionLayout) -> int:
     return sum(len(_units(line)) for line in layout.lines)
 
 
+def ink_box(layout: CaptionLayout, top: int, center_x: int = 256) -> tuple[int, int, int, int]:
+    """Canvas box (x0, y0, x1, y1) that draw_caption(canvas, layout, top, center_x) inks, stroke included."""
+    half = layout.width / 2
+    return math.floor(center_x - half), top, math.ceil(center_x + half), top + layout.height
+
+
 def draw_caption(canvas: Image.Image, layout: CaptionLayout, top: int, center_x: int = 256,
                  upto: int | None = None) -> None:
     """Draw the caption with its ink box starting at `top`. `upto` limits visible units (typewriter)."""

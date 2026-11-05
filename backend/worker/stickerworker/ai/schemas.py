@@ -76,3 +76,12 @@ JUDGE_REASONS = ("ok", "sexual", "slur", "real_person", "minor", "defamation", "
 def judge_schema() -> dict[str, Any]:
     item = strict_object({"index": {"type": "integer"}, "allowed": BOOLEAN, "reason": _enum(JUDGE_REASONS)})
     return strict_object({"verdicts": _array(item)})
+
+
+# Technical/visual problems only: the quality judge never rates the joke, topic or taste.
+QUALITY_ISSUES = ("blurry", "pixelated", "subject_cut_off", "subject_too_small", "unreadable_text", "text_cut_off",
+                  "text_covers_subject", "compression_artifacts", "watermark", "mostly_empty", "other")
+
+
+def quality_schema() -> dict[str, Any]:
+    return strict_object({"score": {"type": "integer"}, "issues": _array(_enum(QUALITY_ISSUES))})

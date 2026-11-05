@@ -2,8 +2,8 @@
 
 Labels come from hints (file name words, topic, OCR) and the prescreen score, so a
 local folder can exercise every path: name a file `baby_...`, `meme_text_...`,
-`explicit_...`, `amitabh_bachchan_...`, `cutout_...` and so on. Never used against
-Supabase except in --dry-run.
+`explicit_...`, `amitabh_bachchan_...`, `cutout_...` and so on (`ugly_...` fails the
+optional quality judge). Never used against Supabase except in --dry-run.
 """
 from __future__ import annotations
 
@@ -11,10 +11,11 @@ import hashlib
 from collections.abc import Callable, Sequence
 from typing import Any
 
+from .. import vocab
 from ..analysis import Analysis, Caption, normalize_analysis
 from ..lexicon import lexical_flags
 from ..textutil import normalize_name, tokens
-from .base import CaptionRequest, PackName, PackNameRequest, VisionInput
+from .base import CaptionRequest, PackName, PackNameRequest, QualityInput, QualityVerdict, VisionInput
 
 MOODS = ("happy", "angry", "shocked", "sarcastic", "sad", "excited")
 HINGLISH_MOOD = {"happy": "khush", "angry": "gussa", "shocked": "hairan", "sarcastic": "taana", "sad": "udaas",
@@ -122,3 +123,10 @@ class FakeAI:
 
         self._log("pack_title")
         return fallback_pack_name(request.category, request.kind, request.rating, request.trend)
+
+    def judge_quality(self, item: QualityInput) -> QualityVerdict:
+        """A file name with `ugly` or `lowquality` gets 1/10 (`other`); everything else passes with 8/10."""
+        self._log(vocab.QUALITY_PURPOSE)
+        if set(tokens(" ".join(item.hints))) & {"ugly", "lowquality"}:
+            return QualityVerdict(1, ("other",))
+        return QualityVerdict(8, ())

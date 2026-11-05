@@ -23,7 +23,11 @@ MINOR_BLOCKED_CATEGORIES = frozenset({"adult", "dark", "relationship"})
 
 # stickers.recipe values (DB check constraint).
 STICKER_RECIPES = ("direct", "caption", "cutout", "motion", "remake", "original", "upload")
+# stickers.status values (DB check constraint). `held` = below the quality gate, waiting for an admin.
+STICKER_STATUSES = ("draft", "published", "held", "rejected", "taken_down")
 
 SOURCE_STATUSES = ("new", "screened", "analyzing", "analyzed", "used", "rejected", "failed", "taken_down")
 TEXT_PURPOSES = ("caption", "judge", "pack_title", "trend")
 VISION_PURPOSE = "analyze"
+# Optional vision quality judge: one image per call, counted against budgets.vision_per_day.
+QUALITY_PURPOSE = "quality_judge"

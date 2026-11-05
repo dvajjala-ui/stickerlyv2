@@ -5,16 +5,30 @@ import json
 from collections.abc import Sequence
 from typing import Any
 
+from .. import vocab
 from ..analysis import Analysis, Caption, InvalidAnalysis, normalize_batch, normalize_caption
 from ..config import Env
 from ..textutil import clean_text, strip_emoji
 from . import prompts, schemas
-from .base import AIInvalid, CaptionRequest, PackName, PackNameRequest, VisionInput
+from .base import AIInvalid, CaptionRequest, PackName, PackNameRequest, QualityInput, QualityVerdict, VisionInput
 from .groq import IMAGE_TOKENS, ChatResult, GroqClient, GroqError, SchemaRejected
 
 
 def _reasoning(value: str) -> dict[str, Any]:
     return {"reasoning_effort": value} if value else {}
+
+
+def parse_quality_verdict(content: Any) -> QualityVerdict:
+    """Strict reading of the quality judge's answer: an integer score 0-10 is required; unknown issues are dropped."""
+    score = content.get("score") if isinstance(content, dict) else None
+    if isinstance(score, float) and score.is_integer():
+        score = int(score)
+    if isinstance(score, bool) or not isinstance(score, int):
+        raise AIInvalid("quality_score_missing")
+    raw = content.get("issues")
+    issues = [str(i).strip().lower() for i in raw] if isinstance(raw, list) else []
+    known = tuple(dict.fromkeys(i for i in issues if i in schemas.QUALITY_ISSUES))
+    return QualityVerdict(max(0, min(10, score)), known)
 
 
 def _inline(messages: list[dict[str, Any]], schema: dict[str, Any]) -> list[dict[str, Any]]:
@@ -95,6 +109,14 @@ class GroqAI:
                 if isinstance(verdict, dict) and isinstance(verdict.get("index"), int):
                     allowed[verdict["index"]] = verdict.get("allowed") is True
         return [allowed.get(i, False) for i in range(len(captions))]  # missing verdict = not allowed
+
+    def judge_quality(self, item: QualityInput) -> QualityVerdict:
+        """One sticker per call, so each ledger row is exactly one image of budgets.vision_per_day."""
+        result = self._structured(
+            purpose=vocab.QUALITY_PURPOSE, model=self.env.vision_model, name="sticker_quality",
+            messages=prompts.quality_messages(item), schema=schemas.quality_schema(), kind="vision", units=1,
+            max_tokens=prompts.QUALITY_MAX_TOKENS, temperature=0.0, reasoning=self.env.vision_reasoning)
+        return parse_quality_verdict(result.content)
 
     def name_pack(self, request: PackNameRequest) -> PackName:
         result = self._structured(

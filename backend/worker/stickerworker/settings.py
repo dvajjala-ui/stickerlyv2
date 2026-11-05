@@ -13,6 +13,7 @@ DEFAULT_ROWS: dict[str, Any] = {
     "categories": {"enabled": ["reactions", "funny", "hinglish", "movies", "old_movies", "songs", "memes",
                                "dark", "relationship", "office", "festivals", "animals", "baby",
                                "trending", "adult"]},
+    "quality_gate": {"enabled": True, "min_score": 60, "vision_judge": False, "judge_band": 20},
 }
 
 # Mirrors the migration seed; the database table is authoritative in production.
@@ -48,10 +49,24 @@ class Budgets:
 
 
 @dataclass(frozen=True)
+class QualityGate:
+    """Stickers that would publish but score below `min_score` (0-100) are held for an admin.
+
+    `vision_judge` (off by default) asks the vision model about stickers whose local score is
+    within `judge_band` of `min_score`; it spends budgets.vision_per_day, one image per sticker.
+    """
+    enabled: bool = True
+    min_score: int = 60
+    vision_judge: bool = False
+    judge_band: int = 20
+
+
+@dataclass(frozen=True)
 class Settings:
     publish: PublishPolicy
     budgets: Budgets
     categories: tuple[str, ...]
+    quality: QualityGate = QualityGate()
 
 
 def _int(value: Any, default: int, low: int = 0, high: int = 1_000_000) -> int:
@@ -72,6 +87,8 @@ def parse_settings(rows: Mapping[str, Any]) -> Settings:
     budgets = raw_budgets if isinstance(raw_budgets, Mapping) else {}
     raw_categories = rows.get("categories")
     categories = raw_categories.get("enabled") if isinstance(raw_categories, Mapping) else None
+    raw_gate = rows.get("quality_gate")
+    gate = raw_gate if isinstance(raw_gate, Mapping) else {}
     defaults = DEFAULT_ROWS
     sites = policy.get("require_review_sites")
     celebrities = policy.get("celebrities")
@@ -94,4 +111,10 @@ def parse_settings(rows: Mapping[str, Any]) -> Settings:
                                           defaults["budgets"]["max_new_stickers_per_day"]),
         ),
         categories=enabled or tuple(defaults["categories"]["enabled"]),
+        quality=QualityGate(
+            enabled=_bool(gate.get("enabled"), True),
+            min_score=_int(gate.get("min_score"), defaults["quality_gate"]["min_score"], 0, 100),
+            vision_judge=_bool(gate.get("vision_judge"), False),
+            judge_band=_int(gate.get("judge_band"), defaults["quality_gate"]["judge_band"], 0, 100),
+        ),
     )

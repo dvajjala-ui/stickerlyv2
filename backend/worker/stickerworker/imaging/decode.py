@@ -94,9 +94,10 @@ def flatten(image: Image.Image, background: tuple[int, int, int] = (255, 255, 25
     return canvas.convert("RGB")
 
 
-def vision_jpeg(image: Image.Image, max_side: int = 1024, quality: int = 85) -> bytes:
+def vision_jpeg(image: Image.Image, max_side: int = 1024, quality: int = 85,
+                background: tuple[int, int, int] = (255, 255, 255)) -> bytes:
     """Downscale to max_side, flatten, re-encode. Re-encoding drops EXIF and other metadata."""
-    rgb = flatten(image)
+    rgb = flatten(image, background)
     rgb.thumbnail((max_side, max_side), Image.Resampling.LANCZOS)
     buffer = io.BytesIO()
     rgb.save(buffer, format="JPEG", quality=quality, optimize=True)

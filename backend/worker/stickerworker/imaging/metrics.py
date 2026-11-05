@@ -9,6 +9,9 @@ from PIL import Image
 
 from .decode import flatten
 
+# WhatsApp's default chat backgrounds (light, dark): what shows through a sticker's transparency.
+CHAT_BACKDROPS: tuple[tuple[int, int, int], ...] = ((239, 234, 226), (11, 20, 26))
+
 
 def phash_hex(image: Image.Image) -> str:
     """64-bit perceptual hash as 16 lowercase hex characters."""
@@ -25,11 +28,70 @@ def _gray(image: Image.Image, max_side: int = 512) -> np.ndarray:
     return np.asarray(rgb.convert("L"), dtype=np.float32)
 
 
+def laplacian(gray: np.ndarray) -> np.ndarray:
+    """4-neighbour Laplacian of the interior pixels: shape (h - 2, w - 2)."""
+    return -4 * gray[1:-1, 1:-1] + gray[:-2, 1:-1] + gray[2:, 1:-1] + gray[1:-1, :-2] + gray[1:-1, 2:]
+
+
 def laplacian_variance(gray: np.ndarray) -> float:
     if gray.shape[0] < 3 or gray.shape[1] < 3:
         return 0.0
-    lap = (-4 * gray[1:-1, 1:-1] + gray[:-2, 1:-1] + gray[2:, 1:-1] + gray[1:-1, :-2] + gray[1:-1, 2:])
-    return float(lap.var())
+    return float(laplacian(gray).var())
+
+
+def erode(mask: np.ndarray, radius: int) -> np.ndarray:
+    """Binary erosion with a (2r+1)² square via a summed-area table; outside the array counts as empty."""
+    if radius <= 0:
+        return mask.astype(bool)
+    h, w = mask.shape
+    k = 2 * radius + 1
+    table = np.zeros((h + k, w + k), np.int32)
+    table[1:, 1:] = np.pad(mask.astype(np.int32), radius).cumsum(0).cumsum(1)
+    window = table[k:, k:] - table[:-k, k:] - table[k:, :-k] + table[:-k, :-k]
+    return window == k * k
+
+
+def relative_luminance(rgb: np.ndarray) -> np.ndarray:
+    """WCAG relative luminance (0-1) of sRGB values in 0-255."""
+    c = np.asarray(rgb, dtype=np.float32) / 255.0
+    linear = np.where(c <= 0.04045, c / 12.92, ((c + 0.055) / 1.055) ** 2.4)
+    return linear[..., 0] * 0.2126 + linear[..., 1] * 0.7152 + linear[..., 2] * 0.0722
+
+
+def otsu_split(values: np.ndarray, bins: int = 256) -> float:
+    """Otsu threshold of values in 0-1 (the cut that best separates a light and a dark group)."""
+    histogram, edges = np.histogram(values, bins=bins, range=(0.0, 1.0))
+    weights = histogram.astype(np.float64)
+    centres = (edges[:-1] + edges[1:]) / 2
+    below = np.cumsum(weights)
+    total = below[-1]
+    if total <= 0:
+        return 0.5
+    above = total - below
+    sum_below = np.cumsum(weights * centres)
+    mean_below = sum_below / np.maximum(below, 1e-9)
+    mean_above = (sum_below[-1] - sum_below) / np.maximum(above, 1e-9)
+    between = below * above * (mean_below - mean_above) ** 2
+    return float(edges[int(np.argmax(between)) + 1])
+
+
+def text_contrast(region: Image.Image, min_share: float = 0.03) -> float:
+    """Worst WCAG contrast ratio (1-21) between the light and dark pixels of a caption region, over
+    WhatsApp's light and dark chat backgrounds. 1.0 means no readable split (blank or one tone)."""
+    rgba = region.convert("RGBA")
+    if rgba.width < 2 or rgba.height < 2:
+        return 1.0
+    worst = 21.0
+    for backdrop in CHAT_BACKDROPS:
+        canvas = Image.new("RGBA", rgba.size, (*backdrop, 255))
+        canvas.alpha_composite(rgba)
+        lum = relative_luminance(np.asarray(canvas.convert("RGB"))).ravel()
+        cut = otsu_split(lum)
+        light, dark = lum[lum >= cut], lum[lum < cut]
+        if min(light.size, dark.size) < min_share * lum.size:
+            return 1.0
+        worst = min(worst, (float(light.mean()) + 0.05) / (float(dark.mean()) + 0.05))
+    return worst
 
 
 def measure(image: Image.Image) -> dict[str, float]:

@@ -104,6 +104,20 @@ def test_positions_stay_unique_after_pruning(ctx, store):
     assert len(positions) == len(set(positions)) == 5
 
 
+def test_held_stickers_are_never_packed_or_counted_towards_three(ctx, store):
+    for _ in range(2):
+        add_sticker(store, category="festivals")
+    held = add_sticker(store, category="festivals", status="held")
+    packs.run(ctx)
+    (pack,) = store.packs()
+    assert pack["status"] == "draft" and pack["sticker_count"] == 2
+    assert held["id"] not in {i["sticker_id"] for i in store.pack_items([pack["id"]])}
+    store.update_sticker(held["id"], {"status": "published"})  # an admin approves it
+    packs.run(ctx)
+    (pack,) = store.packs()
+    assert pack["status"] == "published" and pack["sticker_count"] == 3
+
+
 def test_daily_trend_pack_needs_six_matches(ctx, store):
     store.upsert_trends([{"title": "World Cup Final", "keywords": ["world cup", "cricket", "final"],
                           "source": "owner", "score": 5.0, "category": "trending"}])

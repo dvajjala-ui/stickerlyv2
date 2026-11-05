@@ -6,11 +6,13 @@ import shutil
 from pathlib import Path
 
 import pytest
+from PIL import ImageFilter
 from samples import encode, photo, write_sample_folder
 
 from stickerworker.cli import main
 from stickerworker.imaging.validate import inspect_sticker
 from stickerworker.store import LocalStore
+from stickerworker.timeutil import ist_day_start, utcnow
 
 
 @pytest.fixture(scope="module")
@@ -131,3 +133,73 @@ def test_dry_run_writes_nothing(tmp_path):
     assert main(["run", "--local", str(inbox), "--out", str(out), "--dry-run", "--stage", "prescreen"]) == 0
     store = LocalStore(out)
     assert store.rows("source_images") == [] and store.rows("stickers") == []
+
+
+def stickers_by_hint(store: LocalStore) -> dict[str, list[dict]]:
+    found: dict[str, list[dict]] = {}
+    for sticker in store.rows("stickers"):
+        found.setdefault(store.source(sticker["source_id"])["topic_hint"], []).append(sticker)
+    return found
+
+
+def pack_members(store: LocalStore) -> set[str]:
+    return {row[0] for row in store.db.execute("select sticker_id from pack_items")}
+
+
+def test_quality_gate_holds_a_weak_sticker_and_publishes_good_ones(tmp_path):
+    inbox, out = tmp_path / "in", tmp_path / "out"
+    inbox.mkdir()
+    for seed in (81, 82):
+        (inbox / f"office_reaction_good_{seed}.jpg").write_bytes(encode(photo(seed=seed), "JPEG", quality=92))
+    # Passes prescreen (score ~6.4, so FakeAI plans caption + motion) but renders blurry.
+    blurred = photo(720, 540, seed=83, hue=40).filter(ImageFilter.GaussianBlur(6))
+    (inbox / "office_reaction_soft.jpg").write_bytes(encode(blurred, "JPEG", quality=92))
+    assert main(["run", "--local", str(inbox), "--out", str(out)]) == 0
+    store = LocalStore(out)
+    by_hint = stickers_by_hint(store)
+    good, weak = by_hint["office reaction good"], by_hint["office reaction soft"]
+    assert len(good) >= 4 and all(s["status"] == "published" and s["quality_score"] >= 60 for s in good)
+    assert {s["kind"] for s in weak} == {"static", "animated"}  # caption stickers and their motion variant
+    for sticker in weak:
+        assert sticker["status"] == "held" and sticker["quality_score"] < 60 and not sticker["published_at"]
+        assert "blurry" in sticker["quality_reasons"] and sticker["review_note"].startswith("quality_gate:")
+    assert store.source(weak[0]["source_id"])["status"] == "used"
+    # Held stickers are never packed. The animated pack would only reach WhatsApp's minimum of 3 with
+    # the held motion sticker, so it stays a draft; the static pack has enough published stickers.
+    assert not pack_members(store) & {s["id"] for s in weak}
+    animated = next(p for p in store.packs() if p["kind"] == "animated")
+    assert animated["status"] == "draft" and animated["sticker_count"] == 2
+    assert next(p for p in store.packs() if p["kind"] == "static")["status"] == "published"
+    # report.json and the gallery say why
+    report = json.loads((out / "report.json").read_text(encoding="utf-8"))
+    held = [s for s in report["stickers"] if s["status"] == "held"]
+    assert report["quality_gate"]["held"] == len(held) == len(weak)
+    assert all("blurry" in s["quality_reasons"] and s["quality_signals"]["sharpness"] < 12 for s in held)
+    page = (out / "index.html").read_text(encoding="utf-8")
+    assert "Held by the quality gate" in page and f"quality {held[0]['quality_score']}/100: blurry" in page
+    # An admin approves the held motion sticker: the next compose packs it and the animated pack publishes.
+    motion = next(s for s in weak if s["kind"] == "animated")
+    store.update_sticker(motion["id"], {"status": "published"})
+    assert main(["run", "--stage", "compose", "--local", str(inbox), "--out", str(out)]) == 0
+    assert motion["id"] in pack_members(store)
+    animated = next(p for p in store.packs() if p["kind"] == "animated")
+    assert animated["status"] == "published" and animated["sticker_count"] == 3
+
+
+def test_optional_vision_judge_runs_offline_with_fake_ai(tmp_path):
+    inbox, out = tmp_path / "in", tmp_path / "out"
+    inbox.mkdir()
+    (inbox / "office_reaction_fine.jpg").write_bytes(encode(photo(seed=84), "JPEG", quality=92))
+    (inbox / "office_reaction_ugly.jpg").write_bytes(encode(photo(seed=85), "JPEG", quality=92))
+    LocalStore(out).set_setting("quality_gate", {"enabled": True, "min_score": 60, "vision_judge": True,
+                                                 "judge_band": 100})  # judge every sticker
+    assert main(["run", "--local", str(inbox), "--out", str(out)]) == 0
+    store = LocalStore(out)
+    by_hint = stickers_by_hint(store)
+    fine, ugly = by_hint["office reaction fine"], by_hint["office reaction ugly"]
+    assert all(s["status"] == "published" and s["quality_signals"]["judge"]["score"] == 8 for s in fine)
+    assert all(s["status"] == "held" and "judge:other" in s["quality_reasons"] for s in ugly)
+    judged = [c for c in store.rows("ai_calls") if c["purpose"] == "quality_judge"]
+    assert len(judged) == len(fine) + len(ugly)  # one image per judged sticker
+    analysed = len(store.rows("source_images", "analyzed_at is not null"))
+    assert store.ai_usage_since(ist_day_start(utcnow()))["vision"] == analysed + len(judged)

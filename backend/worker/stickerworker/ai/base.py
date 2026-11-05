@@ -61,6 +61,22 @@ class PackName:
     description: str
 
 
+@dataclass(frozen=True)
+class QualityInput:
+    """One finished sticker for the optional vision quality judge (first frame, flattened JPEG)."""
+    ref: str
+    jpeg: bytes
+    kind: str = "static"  # static | animated
+    caption: str = ""  # text that should be readable on the sticker ("" when none)
+    hints: tuple[str, ...] = ()  # source words; only FakeAI reads them
+
+
+@dataclass(frozen=True)
+class QualityVerdict:
+    score: int  # 0-10
+    issues: tuple[str, ...] = ()
+
+
 class AI(Protocol):
     provider: str
 
@@ -71,3 +87,4 @@ class AI(Protocol):
     def write_captions(self, request: CaptionRequest) -> list[Caption]: ...
     def judge_captions(self, analysis: Analysis, captions: Sequence[Caption]) -> list[bool]: ...
     def name_pack(self, request: PackNameRequest) -> PackName: ...
+    def judge_quality(self, item: QualityInput) -> QualityVerdict: ...
