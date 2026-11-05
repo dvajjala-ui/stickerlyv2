@@ -12,6 +12,8 @@ service-account*.json
 **/.gradle/
 **/.kotlin/
 app/**/databases/*.db
+# ...but keep SQLDelight schema snapshots: verifyMigrations checks each NN.sqm against them
+!app/shared/src/commonMain/sqldelight/databases/*.db
 *.apk
 *.aab
 *.ipa
@@ -41,3 +43,6 @@ work/
 device-facts*.txt
 backend/worker/demo-in/
 backend/worker/*.egg-info/
+
+# Release output (tools/release.ps1)
+dist/

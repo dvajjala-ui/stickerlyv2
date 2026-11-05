@@ -54,6 +54,14 @@ All checks below ran over adb with debug-only command hooks; no WhatsApp UI was 
 - **Shelf management** ✅ WhatsApp tab lists the packs offered to WhatsApp with covers and per-WhatsApp add buttons;
   with 12 offered it shows "12 of 10" and the guideline warning; ✕ removed "Animated 4" with an Undo snackbar.
   Shelf restored to the original 8 afterwards. `:shared:jvmTest` 24/24 (shelf flow keeps under-3 packs listed).
+- **Release (R8) build on device** ✅ new `qa` build type = release code + R8 full mode + debug hooks
+  (`app.stickerdock.qa`, installed beside the dev build, removed afterwards). Under R8: imported 176 real files
+  (173 added, 2 dup, 1 over 900 KB) incl. Fresco re-encodes and Lottie `.was`; provider self-test 4/4 OK; library,
+  Discover feed + pack save (Ktor/serialization), navigation, keyboard commit (`image/webp.wasticker`, decoded)
+  and the photo creator all worked. Two bugs found and fixed: ML Kit registrars lost their constructors under R8
+  (`NoSuchMethodException …ComponentRegistrar.<init>`, background removal failed) → keep rule; switching keyboards
+  while ours was showing crashed (`onDestroy` → `onFinishInputView` after DESTROYED; also affects debug builds)
+  → fixed, re-checked on the QA build (no crash, Samsung Keyboard restored).
 - **Samsung Freecess** froze the companion (user 95) ~50 s into a background import; the debug broadcast then hit
   the background ANR timeout and Android killed it. Real imports run from foreground screens / foreground jobs;
   debug hooks now release the broadcast immediately and run with the showcase screen in front.

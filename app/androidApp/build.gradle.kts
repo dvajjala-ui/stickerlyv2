@@ -16,7 +16,8 @@ android {
         applicationId = "app.stickerdock"
         minSdk = libs.versions.android.minSdk.get().toInt()
         targetSdk = libs.versions.android.targetSdk.get().toInt()
-        versionCode = 1
+        // tools/release.ps1 passes the commit count so each sideloaded build installs over the last one.
+        versionCode = providers.gradleProperty("versionCode").orElse("1").get().toInt()
         versionName = "2.0.0-dev1"
         buildConfigField("String", "DISCOVER_URL", "\"${discoverUrl.get()}\"")
         buildConfigField("String", "DISCOVER_ANON_KEY", "\"${discoverAnonKey.get()}\"")
@@ -48,6 +49,22 @@ android {
             isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
             if (System.getenv("ANDROID_KEYSTORE_FILE") != null) signingConfig = signingConfigs.getByName("release")
+        }
+        // Release code as R8 ships it, plus the debug hooks, so adb-driven device checks exercise the minified app.
+        create("qa") {
+            initWith(getByName("release"))
+            applicationIdSuffix = ".qa"
+            versionNameSuffix = "-qa"
+            isDebuggable = true // `run-as` for test fixtures; R8 still shrinks and optimizes
+            signingConfig = signingConfigs.getByName("debug")
+            matchingFallbacks += "release"
+        }
+    }
+    sourceSets {
+        getByName("qa") {
+            kotlin.srcDir("src/debug/kotlin")
+            res.srcDir("src/debug/res")
+            manifest.srcFile("src/debug/AndroidManifest.xml")
         }
     }
     compileOptions {

@@ -110,13 +110,16 @@ class StickerKeyboardService : InputMethodService(), LifecycleOwner, ViewModelSt
 
     override fun onFinishInputView(finishingInput: Boolean) {
         super.onFinishInputView(finishingInput)
-        lifecycleRegistry.currentState = Lifecycle.State.STARTED
+        // InputMethodService.onDestroy() finishes the visible input view, so this also runs during teardown.
+        if (lifecycleRegistry.currentState.isAtLeast(Lifecycle.State.STARTED)) lifecycleRegistry.currentState = Lifecycle.State.STARTED
     }
 
     override fun onDestroy() {
+        // super first: it calls onFinishInputView while the keyboard is showing (switching keyboards).
+        // Moving to DESTROYED before that crashed with "cannot be moved to STARTED" (seen on device).
+        super.onDestroy()
         lifecycleRegistry.currentState = Lifecycle.State.DESTROYED
         store.clear()
-        super.onDestroy()
     }
 
     private fun send(sticker: KeyboardSticker) {

@@ -122,7 +122,9 @@ class CreateStickerActivity : ComponentActivity() {
                         useCutout = on
                         if (on && cutout == null && source != null) scope.launch {
                             cutoutBusy = true
-                            cutout = runCatching { withContext(Dispatchers.Default) { Cutout.subject(source!!) } }.getOrNull()
+                            cutout = runCatching { withContext(Dispatchers.Default) { Cutout.subject(source!!) } }
+                                .onFailure { graph.events.record("create", "cutout failed: ${it.javaClass.name}: ${it.message}") }
+                                .getOrNull()
                             cutoutBusy = false
                             if (cutout == null) {
                                 useCutout = false
