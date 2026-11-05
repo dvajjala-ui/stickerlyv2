@@ -19,6 +19,6 @@ Status: ☐ not run · ✅ pass · ❌ fail · ⚠ partial. Evidence goes in `do
 | D5 | Clone WhatsApp reads packs from companion provider, stickers display | owner present | ☐ |
 | K1 | Keyboard enabled; test field receives `image/webp.wasticker` commit | Keyboard test | ✅ 26 KB sticker committed as image/webp.wasticker, decoded |
 | K2 | WhatsApp composer MIME list captured (owner present; no message sent) | Diagnostics events | ☐ |
-| K3 | Keyboard inside Dual Messenger (companion keyboard enabled for user 95) | owner present | ☐ |
+| K3 | Keyboard inside Dual Messenger (companion keyboard enabled for user 95) | owner present | ✅ main-profile keyboard serves the clone (test field in user 95) |
 | K4 | Sticker sent via keyboard arrives as a sticker (animated plays) | owner present | ☐ |
 | X1 | Discover feed loads, save sticker/pack, pack follows updates | needs Supabase | ☐ |

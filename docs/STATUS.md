@@ -43,6 +43,11 @@ All checks below ran over adb with debug-only command hooks; no WhatsApp UI was 
   "Kya baat hai boss", saved into a new "My creations" pack.
 - **Keyboard (K1)** ✅ StickerDock keyboard shows the library (animated stickers play); tapping a sticker committed
   it as `image/webp.wasticker` (26 KB) into the test field, which decoded it. Owner's Samsung Keyboard restored.
+- **Keyboard across Dual Messenger (K3)** ✅ a text field running in the clone profile (user 95) was served by the
+  **main profile's** StickerDock keyboard (One UI 8.5 shares the parent's IME with the clone, unlike AOSP's
+  per-profile IMEs); the sticker arrived as `content://0@app.stickerdock.dev.files/stickers/…`
+  (`image/webp.wasticker`, 26 KB) and decoded. So the keyboard reaches the Dual Messenger WhatsApp with no
+  companion or adb setup. Both profiles' default keyboard restored to Samsung Keyboard.
 - **Samsung Freecess** froze the companion (user 95) ~50 s into a background import; the debug broadcast then hit
   the background ANR timeout and Android killed it. Real imports run from foreground screens / foreground jobs;
   debug hooks now release the broadcast immediately and run with the showcase screen in front.

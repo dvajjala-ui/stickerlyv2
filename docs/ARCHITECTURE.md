@@ -30,7 +30,9 @@
   main copy's `SyncProvider` at `content://0@<app>.sync/…` (signature permission), so the clone WhatsApp sees the one
   library. Requests to add a pack in the clone are queued in the main copy and executed by the companion, which the
   main copy opens with `CrossProfileApps.startMainActivity`.
-- **Keyboard**: per-profile on Android 10+, so the companion also provides the keyboard inside the clone.
+- **Keyboard**: AOSP binds keyboards per profile (Android 10+), but on One UI 8.5 the Dual Messenger clone uses the
+  main profile's keyboard (verified: commit from user 0 decoded in a user-95 field via `content://0@…`). So the main
+  copy's keyboard already covers Dual Messenger; the companion keyboard is the fallback for OEMs that bind per profile.
 - Verified on One UI 8.5 (S24 Ultra): `CrossProfileApps.targetUserProfiles` is empty from user 0 towards the clone
   (it works from the clone towards user 0). The main copy therefore detects companions with a cross-user
   `call("whoami")` on `content://<user>@<app>.sync` and opens them with an `ACTION_SEND` of type
