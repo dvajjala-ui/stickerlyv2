@@ -2,6 +2,12 @@
 
 Work continues around these; nothing here blocks the rest of the build. Newest first.
 
+## 00. The phone dropped off USB at 07:59 (Nov 5)
+Windows stopped seeing the S24 (not even as a USB device), so device checks paused. If you still want overnight
+phone testing next time, check the cable and that "USB debugging" stays allowed. Everything verified before the
+drop is in STATUS.md. Not yet seen on the phone: the Discover infinite scroll (logic is unit-tested; the layout
+needs one look). The dev Discover server now serves a 147-sticker test feed from `work/dev-feed-big`.
+
 ## 0. Morning checklist on your S24 (≈10 minutes, tell me what you saw)
 The test app is **StickerDock** (debug build, package `app.stickerdock.dev`), already holding the 760 stickers from
 both of your WhatsApps. It is also installed inside Dual Messenger.

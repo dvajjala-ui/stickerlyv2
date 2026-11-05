@@ -1,5 +1,6 @@
 package app.stickerdock.ui
 
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Home
@@ -67,8 +68,8 @@ fun CoroutineScope.notify(snackbar: SnackbarHostState, message: String, undo: ((
 }
 
 @Composable
-fun StickerDockRoot(host: HostActions, library: Library, discover: DiscoverClient) {
-    StickerDockTheme {
+fun StickerDockRoot(host: HostActions, library: Library, discover: DiscoverClient, dark: Boolean = isSystemInDarkTheme()) {
+    StickerDockTheme(dark) {
         val app = remember { AppModel(host, library, discover) }
         val nav = rememberNavController()
         val snackbar = remember { SnackbarHostState() }

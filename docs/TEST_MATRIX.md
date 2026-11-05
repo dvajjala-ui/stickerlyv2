@@ -21,4 +21,15 @@ Status: ☐ not run · ✅ pass · ❌ fail · ⚠ partial. Evidence goes in `do
 | K2 | WhatsApp composer MIME list captured (owner present; no message sent) | Diagnostics events | ☐ |
 | K3 | Keyboard inside Dual Messenger (companion keyboard enabled for user 95) | owner present | ✅ main-profile keyboard serves the clone (test field in user 95) |
 | K4 | Sticker sent via keyboard arrives as a sticker (animated plays) | owner present | ☐ |
-| X1 | Discover feed loads, save sticker/pack, pack follows updates | needs Supabase | ☐ |
+| X1 | Discover feed loads, save sticker/pack, pack follows updates | needs Supabase | ⚠ dev server: feed, pack save ✅ (debug + R8 builds) |
+| X2 | Discover infinite scroll reaches the end of a 126-sticker feed (3 pages), footer shown | JVM snapshots | ✅ headless; ☐ on phone |
+| R1 | R8 release code: import, provider, Discover, keyboard, photo creator (ML Kit) | `qa` build on phone | ✅ after ML Kit keep rule |
+| S1 | Shelf: "N of 10", warning past 10, remove with undo | WhatsApp tab | ✅ on phone |
+
+## Without a phone
+- `gradlew :shared:jvmTest` — library, WebP, sync, pager rules (31 tests).
+- UI snapshots: `$env:STICKERDOCK_SNAPSHOTS='1'; gradlew :shared:jvmTest --tests '*UiSnapshotTest*'` renders the
+  shared screens (library, packs, pack, WhatsApp shelf, Discover paging to the end) to `app/shared/build/ui-snapshots/`
+  with Compose Desktop. Start `tools/dev_discover.py work/dev-feed-big --port 8787` first for the Discover shots.
+- Release code paths: `gradlew :androidApp:assembleQa` → `app.stickerdock.qa` (R8 + debug hooks), installable beside
+  the dev build; uninstall it afterwards.

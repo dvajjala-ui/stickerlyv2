@@ -67,6 +67,11 @@ kotlin {
             implementation(libs.sqldelight.sqlite.driver)
             implementation(libs.ktor.client.okhttp)
         }
+        // Skia runtime so UiSnapshotTest can render the shared screens to PNG without a phone.
+        jvmTest.dependencies {
+            implementation(compose.desktop.currentOs)
+            implementation(compose.desktop.uiTestJUnit4)
+        }
     }
 }
 
