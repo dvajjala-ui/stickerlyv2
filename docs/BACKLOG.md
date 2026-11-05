@@ -15,6 +15,9 @@
 ## Core — library & import
 7. ~~Recover rejected animated stickers; GIF → animated~~ — DONE (Fresco re-encoder, Lottie `.was`; 5 of 1,571 left).
 8. ~~Video → animated sticker~~ — DONE (`CreateVideoStickerActivity`, start/length chips, caption).
+8b. Smoother converted animations: long Lottie `.was` stickers come out at ~5 fps (30 frames × 198 ms) to fit
+   500 KB. Encode frames 2+ as changed-rectangle ANMF deltas (blend off, even offsets) so the same budget holds
+   2–3× more frames; keep full frames when most pixels change (e.g. background colour swaps).
 9. Find & merge duplicates already in the library (stickers imported before dHash existed).
 10. Import progress UI for the companion path; SAF picker flow check on device (A2 UI, A3 process death).
 11. Pagination for libraries > 2,000 stickers (current grid loads up to 600 per query).

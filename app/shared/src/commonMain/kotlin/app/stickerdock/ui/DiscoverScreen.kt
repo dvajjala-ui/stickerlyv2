@@ -15,6 +15,7 @@ import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -22,17 +23,22 @@ import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -42,12 +48,15 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import app.stickerdock.discover.FeedPager
 import app.stickerdock.discover.RemotePack
 import app.stickerdock.discover.RemoteSticker
 import app.stickerdock.library.AddResult
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+
+private const val DISCOVER_PAGE = 60
 
 private val CATEGORIES = listOf(
     null to "Trending", "reactions" to "Reactions", "funny" to "Funny", "hinglish" to "Hinglish", "movies" to "Movies",
@@ -70,24 +79,39 @@ fun DiscoverScreen(app: AppModel, modifier: Modifier, onOpenPack: (String) -> Un
     }
     var category by rememberSaveable { mutableStateOf<String?>(null) }
     var query by rememberSaveable { mutableStateOf("") }
-    var stickers by remember { mutableStateOf(emptyList<RemoteSticker>()) }
     var packs by remember { mutableStateOf(emptyList<RemotePack>()) }
-    var error by remember { mutableStateOf<String?>(null) }
     var openSticker by remember { mutableStateOf<RemoteSticker?>(null) }
     var openPack by remember { mutableStateOf<RemotePack?>(null) }
     var askAge by remember { mutableStateOf(false) }
+    var refreshKey by remember { mutableStateOf(0) }
+    var pulling by remember { mutableStateOf(false) }
     val adult = app.adultEnabled
-
-    LaunchedEffect(category, query, adult) {
-        if (query.isNotBlank()) delay(350)
-        error = null
-        runCatching {
-            stickers = if (query.isNotBlank()) client.search(query, adult) else client.feed(adult || category == "adult", category)
-            packs = if (query.isBlank() && category == null) client.packs(adult) else emptyList()
-        }.onFailure { error = "Couldn't load Discover. Check your connection." }
+    // Typing settles for 350 ms before the list switches, so results don't blank out on every keystroke.
+    var search by remember { mutableStateOf(query.trim()) }
+    LaunchedEffect(query) { if (query.isNotBlank()) delay(350); search = query.trim() }
+    // One pager per list; search has no offset parameter, so it asks for more rows and drops the ones shown.
+    val pager = remember(category, search, adult) {
+        FeedPager<RemoteSticker>(DISCOVER_PAGE, { it.id }) { offset, limit ->
+            if (search.isNotBlank()) client.search(search, adult, limit = offset + limit).drop(offset)
+            else client.feed(adult || category == "adult", category, offset = offset, limit = limit)
+        }
     }
+    val feed by pager.state.collectAsState()
+    val grid = rememberLazyGridState()
 
-    LazyVerticalGrid(GridCells.Adaptive(96.dp), modifier.fillMaxSize(), contentPadding = PaddingValues(12.dp),
+    LaunchedEffect(pager, refreshKey) {
+        launch { packs = if (search.isBlank() && category == null) runCatching { client.packs(adult) }.getOrDefault(packs) else emptyList() }
+        pager.refresh()
+        pulling = false
+    }
+    val nearEnd by remember { derivedStateOf {
+        val info = grid.layoutInfo
+        (info.visibleItemsInfo.lastOrNull()?.index ?: 0) >= info.totalItemsCount - 12
+    } }
+    LaunchedEffect(pager, nearEnd, feed.items.size) { if (nearEnd) pager.loadMore() }
+
+    PullToRefreshBox(pulling, onRefresh = { pulling = true; refreshKey++ }, modifier = modifier.fillMaxSize()) {
+    LazyVerticalGrid(GridCells.Adaptive(96.dp), Modifier.fillMaxSize(), state = grid, contentPadding = PaddingValues(12.dp),
         horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         item(span = { GridItemSpan(maxLineSpan) }) {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -95,13 +119,20 @@ fun DiscoverScreen(app: AppModel, modifier: Modifier, onOpenPack: (String) -> Un
                 OutlinedTextField(query, { query = it }, Modifier.fillMaxWidth(), singleLine = true, shape = RoundedCornerShape(16.dp),
                     leadingIcon = { Icon(Icons.Filled.Search, null) }, placeholder = { Text("Search reactions, moods, moments…") })
                 LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    items(CATEGORIES.filter { it.first != "adult" || adult || true }) { (key, label) ->
+                    items(CATEGORIES) { (key, label) ->
                         FilterChip(category == key, {
                             if (key == "adult" && !adult) askAge = true else category = key
                         }, { Text(label) })
                     }
                 }
-                error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+                if (feed.loading && feed.items.isEmpty() && !pulling) LinearProgressIndicator(Modifier.fillMaxWidth())
+                if (feed.error != null && feed.items.isEmpty()) Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("Couldn't load Discover. Check your connection.", Modifier.weight(1f), color = MaterialTheme.colorScheme.error)
+                    TextButton({ scope.launch { pager.retry() } }) { Text("Retry") }
+                }
+                if (feed.loaded && feed.error == null && feed.items.isEmpty() && !feed.loading) Text(
+                    if (search.isNotBlank()) "No stickers match “$search” yet." else "Nothing here yet — new stickers arrive every day.",
+                    color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
         if (packs.isNotEmpty()) item(span = { GridItemSpan(maxLineSpan) }) {
@@ -122,10 +153,21 @@ fun DiscoverScreen(app: AppModel, modifier: Modifier, onOpenPack: (String) -> Un
                 SectionTitle("Stickers", Modifier.padding(start = 0.dp, top = 8.dp))
             }
         }
-        items(stickers, key = { it.id }) { sticker ->
+        items(feed.items, key = { it.id }) { sticker ->
             StickerTile(client.imageUrl(sticker.filePath), sticker.caption ?: "Sticker", animated = sticker.animated,
                 blurred = sticker.adult && !adult, onClick = { if (sticker.adult && !adult) askAge = true else openSticker = sticker })
         }
+        if (feed.items.isNotEmpty()) item(span = { GridItemSpan(maxLineSpan) }, key = "feed-footer") {
+            Box(Modifier.fillMaxWidth().padding(vertical = 12.dp), contentAlignment = Alignment.Center) {
+                when {
+                    feed.error != null -> TextButton({ scope.launch { pager.retry() } }) { Text("Couldn't load more · Retry") }
+                    feed.loading -> CircularProgressIndicator(Modifier.size(28.dp), strokeWidth = 3.dp)
+                    feed.end -> Text("You've seen everything here. Pull down for new ones.",
+                        style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            }
+        }
+    }
     }
 
     openSticker?.let { sticker ->
