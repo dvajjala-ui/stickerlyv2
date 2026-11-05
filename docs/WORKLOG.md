@@ -17,8 +17,20 @@ platform-tools (adb 1.0.41), Gradle 9.6.1 (sha256 verified). Gradle user home `D
 
 **Decisions made by owner** — see AGENTS.md "Owner decisions".
 
+**Done tonight (see STATUS.md for evidence)**
+- Android app builds (AGP 9.1.1 / Kotlin 2.4.10 / CMP 1.11.1); 24 JVM tests; installed on the S24 as
+  `app.stickerdock.dev` in user 0 **and** user 95 (Dual Messenger companion, cross-user grants done).
+- Real data: both WhatsApps' sticker folders imported into one library (672 unique after dedup).
+- Provider validated (official sample rules) in user 0 and via the companion proxy in user 95.
+- Owner's phone has an unlock pattern → screen-dependent checks via debug `ShowcaseActivity` (show-when-locked,
+  our own UI only). Debug hooks: `adb shell am broadcast --user N -f 0x20 -a app.stickerdock.debug.COMMAND
+  -p app.stickerdock.dev --es cmd <probe|import|companion_import|shelf_some|provider_selftest|stats|wipe>`.
+- Test data streamed into each profile's app storage with `run-as app.stickerdock.dev --user N` (files at
+  `files/import/wa` and `files/import/dual`); adb-created files in app media dirs are NOT readable (EACCES).
+- Agents running: backend worker (Python), admin panel (React) + intake function, iOS shell.
+
 **Next**
-1. Android core build: shared library DB + WebP rules, provider, keyboard, folder import → install on S24.
-2. Device checks: provider eligibility, `pm install-existing --user 95` feasibility, keyboard into
-   our own test field (never into WhatsApp chats).
-3. Backend schema + worker + admin; docs (PRODUCT, ARCHITECTURE, CONTENT_POLICY, STATUS, TEST_MATRIX).
+1. Fresco-based `AnimatedReencoder` build → re-import to recover remaining animated rejects; GIF → animated.
+2. K1 keyboard check (`tools/keyboard-check.sh`), restore Samsung keyboard afterwards.
+3. Integrate agents' work; local Discover dev server so the phone shows worker dry-run stickers.
+4. Owner-present: WhatsApp Add dialogs (user 0, Dual via relay chooser), keyboard in WhatsApp (MIME list).

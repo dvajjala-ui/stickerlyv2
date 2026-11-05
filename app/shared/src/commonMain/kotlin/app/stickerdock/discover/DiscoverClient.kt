@@ -132,7 +132,9 @@ class DiscoverClient private constructor(private val base: String, private val a
     companion object {
         fun create(url: String, anonKey: String): DiscoverClient {
             val base = url.trim().trimEnd('/')
-            if (base.isEmpty() || anonKey.isBlank() || !base.startsWith("https://")) return DiscoverClient("", "", null)
+            // https only, except a loopback dev server reached through `adb reverse` (debug builds allow it).
+            val local = base.startsWith("http://127.0.0.1:") || base.startsWith("http://localhost:")
+            if (base.isEmpty() || anonKey.isBlank() || !(base.startsWith("https://") || local)) return DiscoverClient("", "", null)
             val http = HttpClient {
                 install(ContentNegotiation) { json(Json { ignoreUnknownKeys = true; explicitNulls = false }) }
                 install(HttpTimeout) { requestTimeoutMillis = 20_000; connectTimeoutMillis = 10_000 }

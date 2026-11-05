@@ -1,0 +1,10 @@
+# Local runs, caches and build metadata (never commit sticker collections or outputs)
+.venv/
+out/
+stickerworker-out/
+.cache/
+build/
+dist/
+*.egg-info/
+__pycache__/
+.pytest_cache/

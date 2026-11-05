@@ -31,6 +31,21 @@
   library. Requests to add a pack in the clone are queued in the main copy and executed by the companion, which the
   main copy opens with `CrossProfileApps.startMainActivity`.
 - **Keyboard**: per-profile on Android 10+, so the companion also provides the keyboard inside the clone.
+- Verified on One UI 8.5 (S24 Ultra): `CrossProfileApps.targetUserProfiles` is empty from user 0 towards the clone
+  (it works from the clone towards user 0). The main copy therefore detects companions with a cross-user
+  `call("whoami")` on `content://<user>@<app>.sync` and opens them with an `ACTION_SEND` of type
+  `application/vnd.stickerdock.request`, which Android forwards parent → clone; `CompanionRelayActivity` is disabled in
+  the main copy so the intent can only land in the companion (a system chooser may appear first).
+- The companion can also send its profile's WhatsApp sticker folder to the main library (`incoming` insert +
+  `begin_import`/`finish_import` calls), so both accounts' stickers end up in one deduplicated library.
+
+### Import pipeline
+`DocumentTree` (one DocumentsContract query per folder) → `StickerNormalizer` (valid WhatsApp WebP kept
+byte-exact; static images re-encoded to 512² ≤100 KB; animated: container repair `AnimatedWebpFixer` for nearly-512
+canvases, otherwise `AnimatedReencoder` = Fresco decode + composite + scale + Android WebP encode + shared muxer;
+GIFs → animated) → `Library.addSticker` (SHA-256 exact dedup + dHash near-duplicates; animated near-dups must also
+match frame count and duration) → `packImported` (original pack names with ≥4 stickers become packs; the rest merge
+into "From WhatsApp" packs of 30, static/animated apart).
 
 ## Backend (`backend/`)
 - `supabase/migrations` — schema, RLS, views, RPCs (see the SQL header for the data flow).

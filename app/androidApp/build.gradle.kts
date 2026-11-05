@@ -79,6 +79,10 @@ dependencies {
     implementation(libs.sqldelight.android.driver)
     implementation(libs.coil.compose)
     implementation(libs.coil.gif)
+    implementation(libs.fresco.animated.webp)
+    implementation(libs.fresco.animated.gif)
+    implementation(libs.fresco.animated.base)
+    implementation(libs.soloader.nativeloader)
     debugImplementation(libs.compose.uiTooling)
     testImplementation(libs.junit)
 }

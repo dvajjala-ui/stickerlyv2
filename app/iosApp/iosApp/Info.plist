@@ -1,0 +1,99 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CFBundleDevelopmentRegion</key>
+	<string>en</string>
+	<key>CFBundleDisplayName</key>
+	<string>StickerDock</string>
+	<key>CFBundleExecutable</key>
+	<string>$(EXECUTABLE_NAME)</string>
+	<key>CFBundleIdentifier</key>
+	<string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
+	<key>CFBundleInfoDictionaryVersion</key>
+	<string>6.0</string>
+	<key>CFBundleName</key>
+	<string>$(PRODUCT_NAME)</string>
+	<key>CFBundlePackageType</key>
+	<string>APPL</string>
+	<key>CFBundleShortVersionString</key>
+	<string>$(MARKETING_VERSION)</string>
+	<key>CFBundleVersion</key>
+	<string>$(CURRENT_PROJECT_VERSION)</string>
+	<key>LSRequiresIPhoneOS</key>
+	<true/>
+	<key>ITSAppUsesNonExemptEncryption</key>
+	<false/>
+	<!-- Compose Multiplatform refuses to start without this (120 Hz on ProMotion iPhones). -->
+	<key>CADisableMinimumFrameDurationOnPhone</key>
+	<true/>
+	<key>UIApplicationSceneManifest</key>
+	<dict>
+		<key>UIApplicationSupportsMultipleScenes</key>
+		<false/>
+	</dict>
+	<key>UILaunchScreen</key>
+	<dict/>
+	<key>UISupportedInterfaceOrientations</key>
+	<array>
+		<string>UIInterfaceOrientationPortrait</string>
+	</array>
+	<!-- canOpenURL("whatsapp://") needs the scheme listed here. -->
+	<key>LSApplicationQueriesSchemes</key>
+	<array>
+		<string>whatsapp</string>
+	</array>
+	<!-- "Open in StickerDock" for .wastickers packs and ZIP archives/backups, read in place. -->
+	<key>LSSupportsOpeningDocumentsInPlace</key>
+	<true/>
+	<key>CFBundleDocumentTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleTypeName</key>
+			<string>Sticker pack or StickerDock backup</string>
+			<key>CFBundleTypeRole</key>
+			<string>Viewer</string>
+			<key>LSHandlerRank</key>
+			<string>Alternate</string>
+			<key>LSItemContentTypes</key>
+			<array>
+				<string>app.stickerdock.wastickers</string>
+				<string>public.zip-archive</string>
+			</array>
+		</dict>
+	</array>
+	<key>UTImportedTypeDeclarations</key>
+	<array>
+		<dict>
+			<key>UTTypeIdentifier</key>
+			<string>app.stickerdock.wastickers</string>
+			<key>UTTypeDescription</key>
+			<string>WhatsApp sticker pack</string>
+			<key>UTTypeConformsTo</key>
+			<array>
+				<string>public.zip-archive</string>
+			</array>
+			<key>UTTypeTagSpecification</key>
+			<dict>
+				<key>public.filename-extension</key>
+				<array>
+					<string>wastickers</string>
+				</array>
+				<key>public.mime-type</key>
+				<array>
+					<string>application/x-wastickers</string>
+				</array>
+			</dict>
+		</dict>
+	</array>
+	<!-- Optional build settings (see project.yml); empty values keep the app offline. -->
+	<key>StickerDockDiscoverURL</key>
+	<string>$(STICKERDOCK_DISCOVER_URL)</string>
+	<key>StickerDockDiscoverKey</key>
+	<string>$(STICKERDOCK_DISCOVER_KEY)</string>
+	<key>StickerDockAppStoreLink</key>
+	<string>$(STICKERDOCK_APP_STORE_LINK)</string>
+	<key>StickerDockPlayStoreLink</key>
+	<string>$(STICKERDOCK_PLAY_STORE_LINK)</string>
+</dict>
+</plist>

@@ -5,11 +5,14 @@ package app.stickerdock.core
  * platform encoder produced (Android Bitmap.compress, iOS SDWebImage). Ported from v1.
  */
 object AnimatedWebpMuxer {
-    fun mux(frames: List<ByteArray>, frameMs: Int, maximumBytes: Int = StickerRules.ANIMATED_MAX_BYTES): ByteArray {
-        require(frames.size in 2..80) { "Use 2–80 frames" }
-        require(frameMs in StickerRules.MIN_FRAME_MS..1000 && frames.size * frameMs <= StickerRules.MAX_ANIMATION_MS) {
-            "Choose a shorter moving clip"
-        }
+    fun mux(frames: List<ByteArray>, frameMs: Int, maximumBytes: Int = StickerRules.ANIMATED_MAX_BYTES): ByteArray =
+        mux(frames, List(frames.size) { frameMs }, maximumBytes)
+
+    /** Per-frame durations (ms); each ≥8, total ≤10 s. */
+    fun mux(frames: List<ByteArray>, durations: List<Int>, maximumBytes: Int = StickerRules.ANIMATED_MAX_BYTES): ByteArray {
+        require(frames.size in 2..120) { "Use 2–120 frames" }
+        require(durations.size == frames.size && durations.all { it in StickerRules.MIN_FRAME_MS..65_535 } &&
+            durations.sum() <= StickerRules.MAX_ANIMATION_MS) { "Choose a shorter moving clip" }
         val payloads = frames.map(::imageChunks)
         require(payloads.drop(1).any { !it.contentEquals(payloads.first()) }) { "No visible motion in this section" }
         val body = ByteWriter()
@@ -19,10 +22,10 @@ object AnimatedWebpMuxer {
             uint(StickerRules.PIXELS - 1, 3); uint(StickerRules.PIXELS - 1, 3)
         }.toByteArray())
         body.chunk("ANIM", ByteArray(6)) // transparent background, loop forever
-        payloads.forEach { image ->
+        payloads.forEachIndexed { index, image ->
             body.chunk("ANMF", ByteWriter().apply {
                 uint(0, 3); uint(0, 3); uint(StickerRules.PIXELS - 1, 3); uint(StickerRules.PIXELS - 1, 3)
-                uint(frameMs, 3); write(2) // dispose none, do not blend: each frame replaces the canvas
+                uint(durations[index], 3); write(2) // dispose none, do not blend: each frame replaces the canvas
                 write(image)
             }.toByteArray())
             require(body.size() + 8 <= maximumBytes) { "Animation is too detailed. Shorten it or lower the frame rate." }

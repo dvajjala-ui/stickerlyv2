@@ -42,13 +42,19 @@ object StickerNormalizer {
             val problem = StickerRules.problem(kind, info, input.size)
             if (problem == null) return Normalized.Ok(input, kind, exif, reencoded = false)
             if (info.animated) {
-                // Container-level repair (centre on 512², drop alternate keyframes, fit timing) keeps frame quality.
-                val fixed = AnimatedWebpFixer.fix(input)
-                return if (fixed != null) Normalized.Ok(fixed, kind, exif, reencoded = true)
+                // Nearly-512 canvases: container repair keeps the original frames untouched. Smaller ones would
+                // look tiny once centred, so they (and anything the fix can't handle) are re-encoded and scaled.
+                val nearlyFull = max(info.width, info.height) >= 448
+                val fixed = if (nearlyFull) AnimatedWebpFixer.fix(input) else null
+                val result = fixed ?: AnimatedReencoder.reencode(input) ?: AnimatedWebpFixer.fix(input)
+                return if (result != null) Normalized.Ok(result, kind, exif, reencoded = true)
                 else Normalized.Fail("Animated sticker can't be used as-is: $problem")
             }
         }
-        if (isGif(input)) return Normalized.Fail("GIFs need the animated creator")
+        if (isGif(input)) {
+            AnimatedReencoder.reencode(input)?.let { return Normalized.Ok(it, StickerKind.ANIMATED, null, reencoded = true) }
+            // Single-frame GIFs fall through to the static path below.
+        }
         val bitmap = decode(input) ?: return Normalized.Fail("Unsupported or damaged image")
         return try {
             val out = encodeStatic(bitmap) ?: return Normalized.Fail("Couldn't fit the image under 100 KB")
