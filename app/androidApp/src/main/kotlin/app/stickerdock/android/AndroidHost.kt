@@ -97,6 +97,13 @@ class AndroidHost(private val activity: ComponentActivity, private val graph: Ap
     override fun createFromPhoto() = photoLauncher.launch(
         androidx.activity.result.PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
 
+    private val videoLauncher = activity.registerForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
+        if (uri != null) app.stickerdock.android.create.CreateVideoStickerActivity.start(activity, uri)
+    }
+
+    override fun createFromVideo() = videoLauncher.launch(
+        androidx.activity.result.PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.VideoOnly))
+
     private val backupLauncher = activity.registerForActivityResult(ActivityResultContracts.CreateDocument("application/zip")) { uri ->
         if (uri != null) activity.lifecycleScope.launch {
             val result = withContext(Dispatchers.IO) { runCatching { Exporters.libraryBackup(activity, uri) } }

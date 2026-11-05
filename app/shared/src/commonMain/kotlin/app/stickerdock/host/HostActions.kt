@@ -70,6 +70,8 @@ interface HostActions {
     fun importImages()
     /** Opens the photo → sticker creator (background removal, outline, caption). */
     fun createFromPhoto()
+    /** Opens the video/GIF → animated sticker creator. */
+    fun createFromVideo()
     fun cancelImport()
     fun sharePack(packId: String)
     fun exportBackup()

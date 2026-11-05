@@ -196,6 +196,9 @@ fun LibraryScreen(app: AppModel, modifier: Modifier, onOpenPack: (String) -> Uni
             ListItem(headlineContent = { Text("Make a sticker from a photo") },
                 supportingContent = { Text("Remove the background, add a caption, save to a pack") },
                 modifier = Modifier.clickableRow { showImport = false; host.createFromPhoto() })
+            ListItem(headlineContent = { Text("Make an animated sticker from a video") },
+                supportingContent = { Text("Pick 1–3 seconds of a clip, add a caption") },
+                modifier = Modifier.clickableRow { showImport = false; host.createFromVideo() })
             ListItem(headlineContent = { Text("From this phone's WhatsApp") },
                 supportingContent = { Text("Choose the WhatsApp Stickers folder — packs keep their original names") },
                 modifier = Modifier.clickableRow { showImport = false; host.importPhoneFolder() })

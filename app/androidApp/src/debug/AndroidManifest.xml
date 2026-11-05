@@ -22,6 +22,11 @@
             android:showWhenLocked="true"
             tools:replace="android:exported" />
         <activity
+            android:name=".create.CreateVideoStickerActivity"
+            android:exported="true"
+            android:showWhenLocked="true"
+            tools:replace="android:exported" />
+        <activity
             android:name=".keyboard.KeyboardTestActivity"
             android:exported="true"
             android:showWhenLocked="true"

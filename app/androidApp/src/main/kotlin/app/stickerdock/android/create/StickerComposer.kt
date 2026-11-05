@@ -48,7 +48,7 @@ object StickerComposer {
         val paint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG)
         if (recipe.outline && subject.hasAlpha()) drawOutline(canvas, subject, dst)
         canvas.drawBitmap(subject, null, dst, paint)
-        if (recipe.caption.isNotBlank()) drawCaption(canvas, recipe)
+        if (recipe.caption.isNotBlank()) CaptionLayer(recipe.caption, recipe.captionAtTop, recipe.captionScale).draw(canvas)
         return out
     }
 
@@ -69,30 +69,4 @@ object StickerComposer {
         }
     }
 
-    private fun drawCaption(canvas: Canvas, recipe: CreateRecipe) {
-        val text = recipe.caption.trim().take(80)
-        var size = 64f * recipe.captionScale.coerceIn(0.6f, 1.6f)
-        val width = (SIZE - 2 * MARGIN).toInt()
-        fun layout(paint: TextPaint) = StaticLayout.Builder.obtain(text, 0, text.length, paint, width)
-            .setAlignment(Layout.Alignment.ALIGN_CENTER).setLineSpacing(0f, 0.92f).setMaxLines(3).build()
-        val fill = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = Color.WHITE; typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD); textSize = size
-        }
-        var lay = layout(fill)
-        while ((lay.height > SIZE * 0.3f || (0 until lay.lineCount).any { lay.getLineWidth(it) > width }) && size > 26f) {
-            size -= 4f; fill.textSize = size; lay = layout(fill)
-        }
-        val stroke = TextPaint(fill).apply {
-            style = Paint.Style.STROKE; strokeWidth = max(6f, size / 7f); color = Color.parseColor("#12130F")
-            strokeJoin = Paint.Join.ROUND
-        }
-        val strokeLayout = StaticLayout.Builder.obtain(text, 0, text.length, stroke, width)
-            .setAlignment(Layout.Alignment.ALIGN_CENTER).setLineSpacing(0f, 0.92f).setMaxLines(3).build()
-        val top = if (recipe.captionAtTop) MARGIN else SIZE - MARGIN - lay.height
-        canvas.save()
-        canvas.translate(MARGIN, top)
-        strokeLayout.draw(canvas)
-        lay.draw(canvas)
-        canvas.restore()
-    }
 }

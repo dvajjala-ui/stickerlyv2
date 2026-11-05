@@ -62,6 +62,18 @@ object AnimatedReencoder {
         LottieSource(composition).use { encode(it, maxBytes) }
     }.getOrNull()
 
+    /**
+     * A section of a video → animated sticker at 10 fps, with an optional outlined caption on every frame.
+     * [startMs]/[durationMs] pick the section (≤3 s keeps size and timing comfortable for WhatsApp).
+     */
+    fun fromVideo(context: android.content.Context, uri: android.net.Uri, startMs: Long, durationMs: Long,
+                  caption: String = "", maxBytes: Int = StickerRules.ANIMATED_MAX_BYTES): ByteArray? = runCatching {
+        VideoSource(context, uri, startMs, durationMs.coerceIn(500, 3_000)).use { source ->
+            val captionLayer = if (caption.isBlank()) null else app.stickerdock.android.create.CaptionLayer(caption)
+            encode(source, maxBytes, captionLayer?.let { layer -> { canvas: Canvas -> layer.draw(canvas) } })
+        }
+    }.getOrNull()
+
     fun isZip(data: ByteArray) = data.size > 4 && data[0] == 'P'.code.toByte() && data[1] == 'K'.code.toByte() &&
         data[2].toInt() == 3 && data[3].toInt() == 4
 
@@ -78,12 +90,12 @@ object AnimatedReencoder {
         }
     }
 
-    private fun encode(source: FrameSource, maxBytes: Int): ByteArray? {
+    private fun encode(source: FrameSource, maxBytes: Int, overlay: ((Canvas) -> Unit)? = null): ByteArray? {
         if (source.count < 2) return null
         var step = max(1, ceil(source.count / MAX_FRAMES.toDouble()).toInt())
         var quality = START_QUALITY
         repeat(4) {
-            val out = attempt(source, step, quality) ?: return null
+            val out = attempt(source, step, quality, overlay) ?: return null
             if (out.size <= maxBytes && StickerRules.problem(StickerKind.ANIMATED, Webp.inspect(out), out.size) == null) return out
             val ratio = maxBytes / out.size.toDouble()
             when {
@@ -97,7 +109,7 @@ object AnimatedReencoder {
     }
 
     /** One pass: render every frame in order (compositing needs it), keep every [step]-th, merge time. */
-    private fun attempt(source: FrameSource, step: Int, quality: Int): ByteArray? {
+    private fun attempt(source: FrameSource, step: Int, quality: Int, overlay: ((Canvas) -> Unit)? = null): ByteArray? {
         val out512 = Bitmap.createBitmap(StickerRules.PIXELS, StickerRules.PIXELS, Bitmap.Config.ARGB_8888)
         val outCanvas = Canvas(out512)
         val scale = min(StickerRules.PIXELS / source.width.toFloat(), StickerRules.PIXELS / source.height.toFloat())
@@ -116,6 +128,7 @@ object AnimatedReencoder {
                 if (i % step == 0) {
                     outCanvas.drawColor(0, PorterDuff.Mode.CLEAR)
                     outCanvas.drawBitmap(frame, null, dst, filter)
+                    overlay?.invoke(outCanvas)
                     val bytes = ByteArrayOutputStream()
                     check(out512.compress(Bitmap.CompressFormat.WEBP_LOSSY, quality, bytes))
                     frames += bytes.toByteArray()
@@ -188,6 +201,36 @@ object AnimatedReencoder {
         override fun close() {
             canvasBitmap.recycle(); previous?.recycle(); image.dispose()
         }
+    }
+
+    /** A video section sampled at 10 fps; frames are fetched pre-scaled (≤512 px) by the platform decoder. */
+    private class VideoSource(context: android.content.Context, uri: android.net.Uri, private val startMs: Long,
+                              durationMs: Long) : FrameSource {
+        private val retriever = android.media.MediaMetadataRetriever().apply { setDataSource(context, uri) }
+        private val rotation = retriever.extractMetadata(android.media.MediaMetadataRetriever.METADATA_KEY_VIDEO_ROTATION)?.toIntOrNull() ?: 0
+        private val rawW = retriever.extractMetadata(android.media.MediaMetadataRetriever.METADATA_KEY_VIDEO_WIDTH)?.toIntOrNull() ?: 512
+        private val rawH = retriever.extractMetadata(android.media.MediaMetadataRetriever.METADATA_KEY_VIDEO_HEIGHT)?.toIntOrNull() ?: 512
+        private val portrait = rotation == 90 || rotation == 270
+        override val width = if (portrait) rawH else rawW
+        override val height = if (portrait) rawW else rawH
+        override val count = max(2, (durationMs * FPS / 1000).toInt())
+        private var last: Bitmap? = null
+
+        override fun duration(index: Int) = 1000 / FPS
+        override fun reset() {}
+        override fun render(index: Int): Bitmap {
+            val timeUs = (startMs + index * 1000L / FPS) * 1000L
+            val scale = min(1f, StickerRules.PIXELS / max(width, height).toFloat())
+            val frame = retriever.getScaledFrameAtTime(timeUs, android.media.MediaMetadataRetriever.OPTION_CLOSEST,
+                max(1, (width * scale).toInt()), max(1, (height * scale).toInt()))
+                ?: last ?: Bitmap.createBitmap(1, 1, Bitmap.Config.ARGB_8888)
+            if (frame !== last) last?.recycle()
+            last = frame
+            return frame
+        }
+        override fun close() { last?.recycle(); retriever.release() }
+
+        companion object { const val FPS = 10 }
     }
 
     /** Lottie rendered straight at 512 px, sampled at 15 fps. */
