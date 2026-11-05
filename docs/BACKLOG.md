@@ -24,6 +24,13 @@
 14. Quality judge pass on generated stickers (vision model score) before auto-publish; caption A/B variants.
 15. Original art via Cloudflare Workers AI FLUX (owner account) for categories without good sources.
 
+## HandNavigate → v2 intake (after core)
+- HandNavigate (`../hand`, `service/stickerdock.cjs`) posts to v1 `/api/ingest` with a claim/report job queue that
+  v2 doesn't have. Add a v2 sink: `POST {SUPABASE_URL}/functions/v1/intake` with `x-intake-token` and
+  `{image_base64, mime, site, source_url, page_url, author, license, topic, collector:"handnavigate"}` →
+  `{id, duplicate}`; HandNavigate keeps its own daily plans. Config: `STICKERDOCK_V2_INTAKE_URL`,
+  `STICKERDOCK_V2_INTAKE_TOKEN`. Fallback today: `python -m stickerworker intake DIR --collector handnavigate`.
+
 ## From v1 worth porting later
 - Photo sticker editor (crop, outline caption, ML Kit subject cutout, erase/restore brush) — v1 `StickerArtworkEditor`.
 - Editable backups with project history — v1 `EditableBackup`.

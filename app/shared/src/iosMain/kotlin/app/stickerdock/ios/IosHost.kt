@@ -187,6 +187,9 @@ internal class IosHost(private val graph: IosGraph, private val presenter: Prese
         }
     }
 
+    // The photo creator needs a WebP encoder; iOS has none built in (see docs/IOS.md).
+    override fun createFromPhoto() = showMessage("Making stickers from photos is coming to iPhone soon")
+
     override fun cancelImport() {
         stopRequested = true
         queue.clear()

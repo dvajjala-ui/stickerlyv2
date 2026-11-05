@@ -41,7 +41,9 @@ object StickerNormalizer {
             val kind = if (info.animated) StickerKind.ANIMATED else StickerKind.STATIC
             val problem = StickerRules.problem(kind, info, input.size)
             if (problem == null) return Normalized.Ok(input, kind, exif, reencoded = false)
-            if (info.animated) {
+            // Some sticker makers wrap a static sticker as a one-frame "animation" (0 ms frame); treat it as
+            // static and fall through to the static path below.
+            if (info.animated && info.frames >= 2) {
                 // Nearly-512 canvases: container repair keeps the original frames untouched. Smaller ones would
                 // look tiny once centred, so they (and anything the fix can't handle) are re-encoded and scaled.
                 val nearlyFull = max(info.width, info.height) >= 448

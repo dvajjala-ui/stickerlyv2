@@ -69,6 +69,11 @@
             </intent-filter>
         </activity>
 
+        <activity
+            android:name=".create.CreateStickerActivity"
+            android:exported="false"
+            android:windowSoftInputMode="adjustResize" />
+
         <!-- Receives forwarded share intents from the main profile inside clone profiles. -->
         <activity
             android:name=".dual.CompanionRelayActivity"

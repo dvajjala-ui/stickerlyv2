@@ -62,6 +62,7 @@ fresco-animated-gif = { module = "com.facebook.fresco:animated-gif", version.ref
 fresco-animated-base = { module = "com.facebook.fresco:animated-base", version.ref = "fresco" }
 soloader-nativeloader = { module = "com.facebook.soloader:nativeloader", version = "0.11.0" }
 lottie = { module = "com.airbnb.android:lottie", version = "6.7.1" }
+mlkit-subject-segmentation = { module = "com.google.android.gms:play-services-mlkit-subject-segmentation", version = "16.0.0-beta1" }
 
 [plugins]
 androidApplication = { id = "com.android.application", version.ref = "agp" }

@@ -17,6 +17,11 @@
             android:showWhenLocked="true"
             android:turnScreenOn="true" />
         <activity
+            android:name=".create.CreateStickerActivity"
+            android:exported="true"
+            android:showWhenLocked="true"
+            tools:replace="android:exported" />
+        <activity
             android:name=".keyboard.KeyboardTestActivity"
             android:exported="true"
             android:showWhenLocked="true"

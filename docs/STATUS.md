@@ -31,6 +31,11 @@ All checks below ran over adb with debug-only command hooks; no WhatsApp UI was 
   4-column grid, cover badge, expanded pack sheet with visible Save button, dialog sizing, infinite scroll.
 - Pending owner-present checks: WhatsApp add dialogs (P1/D4), keyboard in WhatsApp (K2–K4), relay chooser.
 
+- **Full two-account import, all converters** (Lottie `.was`, Fresco re-encoder, container fix, dHash): main
+  666 files → 573 added / 73 dup / 20 skipped in 74 s; Dual Messenger 905 files → 187 added / 685 dup / 33 skipped
+  in 146 s. **One library of 760 unique stickers (357 static, 403 animated)**; 8 shelf packs pass validation.
+  Remaining skips were single-frame "animations" (static stickers in an animation wrapper) → now treated as
+  static (fix pending re-run) and 3 files over 900 KB.
 - **Samsung Freecess** froze the companion (user 95) ~50 s into a background import; the debug broadcast then hit
   the background ANR timeout and Android killed it. Real imports run from foreground screens / foreground jobs;
   debug hooks now release the broadcast immediately and run with the showcase screen in front.

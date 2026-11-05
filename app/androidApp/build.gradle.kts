@@ -84,6 +84,7 @@ dependencies {
     implementation(libs.fresco.animated.base)
     implementation(libs.soloader.nativeloader)
     implementation(libs.lottie)
+    implementation(libs.mlkit.subject.segmentation)
     debugImplementation(libs.compose.uiTooling)
     testImplementation(libs.junit)
 }

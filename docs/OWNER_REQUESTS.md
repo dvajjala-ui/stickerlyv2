@@ -2,6 +2,20 @@
 
 Work continues around these; nothing here blocks the rest of the build. Newest first.
 
+## 0. Morning checklist on your S24 (≈10 minutes, tell me what you saw)
+The test app is **StickerDock** (debug build, package `app.stickerdock.dev`), already holding the 760 stickers from
+both of your WhatsApps. It is also installed inside Dual Messenger.
+1. **WhatsApp tab** → both "WhatsApp" and "WhatsApp · Dual Messenger" should say Ready.
+2. **My stickers → Packs → "From WhatsApp"** → tap **Add** next to WhatsApp → WhatsApp asks "Add sticker pack?" →
+   Add. Back in StickerDock it should show **Added ✓**. Check the pack in WhatsApp's sticker tray.
+3. Same pack → **Add** next to "WhatsApp · Dual Messenger". A chooser may appear: pick StickerDock (Dual).
+   The second WhatsApp should ask to add the pack. Add it and check its tray.
+4. **WhatsApp tab → StickerDock keyboard → Turn on**, enable "StickerDock stickers". Open your own
+   "Message yourself" chat, switch keyboard (keyboard icon), tap a sticker. Does it arrive as a sticker?
+   Try it in the Dual Messenger WhatsApp too.
+5. **My stickers → Add stickers → Make a sticker from a photo** → remove background, add a caption, save.
+6. Phone setting I changed for the night: Developer options → **Stay awake** → turn off.
+
 ## 1. Create the new Supabase project (needed for Discover, the AI worker and Admin)
 1. supabase.com → New project (free plan is fine to start). Region: Mumbai (`ap-south-1`).
 2. Settings → API: copy **Project URL**, **anon public key**, **service_role key**. Settings → Database: the **DB password**.

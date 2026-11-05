@@ -68,6 +68,8 @@ interface HostActions {
     fun importPhoneFolder()
     fun importArchives()
     fun importImages()
+    /** Opens the photo → sticker creator (background removal, outline, caption). */
+    fun createFromPhoto()
     fun cancelImport()
     fun sharePack(packId: String)
     fun exportBackup()

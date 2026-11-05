@@ -193,6 +193,9 @@ fun LibraryScreen(app: AppModel, modifier: Modifier, onOpenPack: (String) -> Uni
     if (showImport) ModalBottomSheet(onDismissRequest = { showImport = false }) {
         Column(Modifier.padding(bottom = 24.dp)) {
             Text("Add stickers", Modifier.padding(horizontal = 24.dp, vertical = 8.dp), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+            ListItem(headlineContent = { Text("Make a sticker from a photo") },
+                supportingContent = { Text("Remove the background, add a caption, save to a pack") },
+                modifier = Modifier.clickableRow { showImport = false; host.createFromPhoto() })
             ListItem(headlineContent = { Text("From this phone's WhatsApp") },
                 supportingContent = { Text("Choose the WhatsApp Stickers folder — packs keep their original names") },
                 modifier = Modifier.clickableRow { showImport = false; host.importPhoneFolder() })
