@@ -26,7 +26,10 @@
 ## Core — AI factory & Discover
 12. Supabase project (owner) → apply migration, deploy `intake`, connect worker cron, publish first stickers.
 13. Discover: trending + categories + search wired to the live project; follow packs; report flow end to end.
-14. Quality judge pass on generated stickers (vision model score) before auto-publish; caption A/B variants.
+14. ~~Quality gate before auto-publish~~ — DONE in the worker: local 0–100 score (blank, tiny subject, blur, caption
+    contrast/clipping, near-duplicate render, animation timing); below 60 → `held` for admin review; optional
+    vision judge (off by default, counts against the daily vision budget). Still open: caption A/B variants,
+    Admin "Held" tab with scores + bulk approve, re-release held stickers when the threshold changes.
 15. Original art via Cloudflare Workers AI FLUX (owner account) for categories without good sources.
 
 ## HandNavigate → v2 intake — DONE on HandNavigate branch `stickerdock-v2-intake` (01ea9e1, not pushed)

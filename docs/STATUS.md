@@ -77,6 +77,11 @@ All checks below ran over adb with debug-only command hooks; no WhatsApp UI was 
   its stickers; undo) and **Move to / out of the private vault** (confirm lists the packs it leaves). LibraryTest
   15/15 incl. rating/vault; snapshots show the slimmer selection bar and its menu. Phone check pending.
 
+## 2026-11-05 — worker quality gate (agent work, re-run by the lead)
+- Worker `pytest` 198/198 (was 158): scorer unit tests on synthetic images, held-vs-published end to end,
+  migration `20261105000003_quality_gate.sql` checked statically (not applied to a live DB yet), Supabase
+  request shapes. Lead fix on top: prescreen fingerprints now page past PostgREST's 1,000-row cap.
+
 ## 2026-11-05 — tests (re-run by the lead, not only by the agents)
 - Admin: `npm test` 76/76 pass; `npm run build` ok.
 - Worker: `pytest` 158/158 pass (108 s). Ruff not installed in that venv (agent reported clean).

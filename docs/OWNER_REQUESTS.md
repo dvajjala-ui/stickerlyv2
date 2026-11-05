@@ -8,6 +8,11 @@ phone testing next time, check the cable and that "USB debugging" stays allowed.
 drop is in STATUS.md. Not yet seen on the phone: the Discover infinite scroll (logic is unit-tested; the layout
 needs one look). The dev Discover server now serves a 147-sticker test feed from `work/dev-feed-big`.
 
+## 01. Delete the folder `D:\c` by hand (30 seconds)
+A helper agent accidentally wrote 15 synthetic test images under `D:\c\Users\...\scratchpad\e2e\in` (about 1.7 MB,
+created 08:27 today). Nothing else is in `D:\c`. My tools may not delete top-level drive folders, so please delete
+`D:\c` in Explorer.
+
 ## 0. Morning checklist on your S24 (≈10 minutes, tell me what you saw)
 The test app is **StickerDock** (debug build, package `app.stickerdock.dev`), already holding the 760 stickers from
 both of your WhatsApps. It is also installed inside Dual Messenger.
