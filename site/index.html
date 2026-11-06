@@ -1,0 +1,255 @@
+<meta name="claude:viewport-fit-sides" content="cover">
+<title>StickerDock Discover</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=Hanken+Grotesk:wght@400;500;600;700&display=swap">
+<style>
+  /* Layout: sticky ink top bar; responsive tile grid of stickers / pack cards; tap a pack opens a sheet. */
+  :root {
+    --bg: #faf7ef;            /* warm paper */
+    --panel: #ffffff;
+    --ink: #15150f;           /* near-black ink */
+    --muted: #6b6a5e;
+    --line: #e7e2d4;
+    --accent: #000000;        /* set below */
+    --volt: #c8f135;          /* volt lime */
+    --volt-ink: #1a1e00;
+    --shadow: 0 1px 2px rgba(20,20,15,.06), 0 8px 24px rgba(20,20,15,.08);
+    --display: "Bricolage Grotesque", "Hanken Grotesk", system-ui, sans-serif;
+    --body: "Hanken Grotesk", system-ui, -apple-system, sans-serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #121109; --panel: #1d1b12; --ink: #f3efe2; --muted: #a09d8c;
+      --line: #322f22; --volt: #c8f135; --volt-ink: #1a1e00;
+      --shadow: 0 1px 2px rgba(0,0,0,.4), 0 10px 30px rgba(0,0,0,.45); color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #121109; --panel: #1d1b12; --ink: #f3efe2; --muted: #a09d8c;
+    --line: #322f22; --volt: #c8f135; --volt-ink: #1a1e00;
+    --shadow: 0 1px 2px rgba(0,0,0,.4), 0 10px 30px rgba(0,0,0,.45); color-scheme: dark;
+  }
+  * { box-sizing: border-box; }
+  body { background: var(--bg); color: var(--ink); font-family: var(--body); line-height: 1.45; }
+  body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 20; background: var(--ink); }
+
+  header {
+    position: sticky; top: env(safe-area-inset-top, 0px); z-index: 15; background: var(--ink); color: #f3efe2;
+    padding-block: 12px;
+  }
+  .bar { display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+    padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+  .brand { display: flex; align-items: baseline; gap: 8px; font-family: var(--display); font-weight: 800; font-size: 1.4rem; letter-spacing: -.02em; }
+  .brand .dot { width: 10px; height: 10px; border-radius: 3px; background: var(--volt); display: inline-block; transform: translateY(-1px); }
+  .brand small { font-family: var(--body); font-weight: 600; font-size: .62rem; letter-spacing: .14em; text-transform: uppercase; color: var(--volt); }
+  .spacer { flex: 1 1 auto; }
+  .tabs { display: flex; gap: 4px; background: rgba(255,255,255,.08); padding: 3px; border-radius: 999px; }
+  .tabs button { font: inherit; font-weight: 600; font-size: .85rem; color: #d8d4c4; background: none; border: 0; padding: 6px 14px; border-radius: 999px; cursor: pointer; }
+  .tabs button[aria-selected="true"] { background: var(--volt); color: var(--volt-ink); }
+  .adult { display: inline-flex; align-items: center; gap: 7px; font-size: .8rem; font-weight: 600; color: #d8d4c4; cursor: pointer; user-select: none; }
+  .adult input { position: absolute; opacity: 0; width: 0; height: 0; }
+  .toggle { width: 38px; height: 22px; border-radius: 999px; background: rgba(255,255,255,.18); position: relative; transition: background .15s; flex: none; }
+  .toggle::after { content: ""; position: absolute; top: 2px; left: 2px; width: 18px; height: 18px; border-radius: 50%; background: #fff; transition: transform .15s; }
+  .adult input:checked + .toggle { background: var(--volt); }
+  .adult input:checked + .toggle::after { transform: translateX(16px); }
+  .adult input:focus-visible + .toggle { outline: 2px solid var(--volt); outline-offset: 2px; }
+
+  main { max-width: 1120px; margin: 0 auto; padding-block: 22px 60px;
+    padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+  .lede { font-family: var(--display); font-weight: 600; font-size: clamp(1.5rem, 4vw, 2.3rem); letter-spacing: -.02em; text-wrap: balance; margin: 2px 0 2px; }
+  .sub { color: var(--muted); max-width: 60ch; margin-bottom: 20px; }
+
+  .grid { display: grid; gap: 14px; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); }
+  .tile { background: var(--panel); border: 1px solid var(--line); border-radius: 16px; overflow: hidden; box-shadow: var(--shadow); display: flex; flex-direction: column; }
+  .thumb { aspect-ratio: 1; display: grid; place-items: center; background:
+      repeating-conic-gradient(var(--line) 0% 25%, transparent 0% 50%) 50% / 18px 18px; padding: 10px; }
+  .thumb img { max-width: 100%; max-height: 100%; object-fit: contain; filter: drop-shadow(0 4px 10px rgba(0,0,0,.18)); }
+  .tmeta { padding: 9px 11px 11px; display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+  .tmeta .cap { font-weight: 600; font-size: .9rem; line-height: 1.25; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+  .row { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+  .chip { font-size: .64rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; padding: 2px 7px; border-radius: 999px; background: var(--line); color: var(--muted); }
+  .chip.volt { background: var(--volt); color: var(--volt-ink); }
+  .chip.adult { background: #ffe1e1; color: #8a1c1c; }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .chip.adult { background: #3a1414; color: #ffb4b4; } }
+  :root[data-theme="dark"] .chip.adult { background: #3a1414; color: #ffb4b4; }
+
+  .pack { cursor: pointer; text-align: left; font: inherit; color: inherit; padding: 0; border: 1px solid var(--line); background: var(--panel); }
+  .pack .cover { aspect-ratio: 16/10; background: var(--line); }
+  .pack .cover img { width: 100%; height: 100%; object-fit: cover; }
+  .pack .pmeta { padding: 12px 13px 14px; display: flex; flex-direction: column; gap: 6px; }
+  .pack h3 { font-family: var(--display); font-weight: 700; font-size: 1.05rem; margin: 0; letter-spacing: -.01em; }
+  .pack p { margin: 0; color: var(--muted); font-size: .85rem; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+  .packgrid { grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); }
+
+  .state { text-align: center; padding: 56px 18px; border: 1px dashed var(--line); border-radius: 18px; background: var(--panel); }
+  .state h2 { font-family: var(--display); font-weight: 700; font-size: 1.3rem; margin: 0 0 8px; }
+  .state p { color: var(--muted); max-width: 46ch; margin: 0 auto 18px; }
+  .btn { font: inherit; font-weight: 700; cursor: pointer; border: 0; border-radius: 999px; padding: 10px 20px; background: var(--volt); color: var(--volt-ink); }
+  .btn.ghost { background: transparent; color: var(--ink); border: 1px solid var(--line); }
+  .spin { width: 30px; height: 30px; border-radius: 50%; border: 3px solid var(--line); border-top-color: var(--volt); margin: 40px auto; animation: sp 0.8s linear infinite; }
+  @keyframes sp { to { transform: rotate(360deg); } }
+  @media (prefers-reduced-motion: reduce) { .spin { animation: none; } }
+
+  .sheet-bg { position: fixed; inset: 0; background: rgba(10,10,6,.55); display: grid; place-items: end center; z-index: 30; }
+  .sheet { background: var(--bg); width: 100%; max-width: 680px; max-height: 88vh; border-radius: 20px 20px 0 0; overflow: auto; box-shadow: 0 -10px 40px rgba(0,0,0,.3);
+    padding: 20px max(16px, env(safe-area-inset-left,0px)) calc(24px + env(safe-area-inset-bottom,0px)); }
+  .sheet .head { display: flex; align-items: flex-start; gap: 12px; margin-bottom: 14px; }
+  .sheet h2 { font-family: var(--display); font-weight: 800; font-size: 1.4rem; margin: 0; letter-spacing: -.02em; }
+  .close { margin-left: auto; flex: none; width: 34px; height: 34px; border-radius: 50%; border: 1px solid var(--line); background: var(--panel); color: var(--ink); font-size: 1.1rem; cursor: pointer; }
+  footer { text-align: center; color: var(--muted); font-size: .78rem; padding: 10px 16px 30px; }
+  a.link { color: inherit; }
+</style>
+
+<header>
+  <div class="bar">
+    <span class="brand"><span class="dot"></span>StickerDock <small>Discover</small></span>
+    <span class="spacer"></span>
+    <label class="adult" title="Show 18+ humour (no nudity)">
+      <input type="checkbox" id="adult"><span class="toggle"></span>18+
+    </label>
+    <div class="tabs" role="tablist" aria-label="View">
+      <button role="tab" id="tab-packs" aria-selected="true">Packs</button>
+      <button role="tab" id="tab-stickers" aria-selected="false">Stickers</button>
+    </div>
+  </div>
+</header>
+
+<main>
+  <h1 class="lede" id="lede">Fresh Hinglish stickers for WhatsApp</h1>
+  <p class="sub" id="sub">Reaction memes, Bollywood moments and daily-mood stickers — auto-made and published here. Open a pack to see every sticker, then add it from the StickerDock app.</p>
+  <div id="view"><div class="spin" aria-label="Loading"></div></div>
+</main>
+
+<footer id="foot"></footer>
+
+<div id="modal" hidden></div>
+
+<script>
+  const SUPABASE_URL = "https://kyvowdxtwazxhsdjajpm.supabase.co";
+  const KEY = "sb_publishable_hibpCfAaAFRgMc24KVWiCg_hpm8Zw1b";
+  const H = { apikey: KEY }; // sb_publishable key goes in the apikey header only (anon role); public is the default schema
+  const img = (p) => `${SUPABASE_URL}/storage/v1/object/public/stickers/${p}`;
+  const view = document.getElementById("view");
+  const foot = document.getElementById("foot");
+  const esc = (s) => (s ?? "").replace(/[&<>"]/g, c => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;" }[c]));
+  let tab = "packs";
+  let adult = false;
+  let cache = { packs: null, stickers: null };
+
+  async function api(path) {
+    const r = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, { headers: H });
+    if (!r.ok) throw new Error(`${r.status}`);
+    return r.json();
+  }
+  async function rpc(fn, body) {
+    const r = await fetch(`${SUPABASE_URL}/rest/v1/rpc/${fn}`, {
+      method: "POST", headers: { ...H, "Content-Type": "application/json" }, body: JSON.stringify(body) });
+    if (!r.ok) throw new Error(`${r.status}`);
+    return r.json();
+  }
+
+  function chips(it) {
+    const out = [];
+    if (it.animated || (it.kind || "").toLowerCase() === "animated") out.push('<span class="chip volt">GIF</span>');
+    if ((it.rating || "").toLowerCase() === "adult") out.push('<span class="chip adult">18+</span>');
+    if (it.category) out.push(`<span class="chip">${esc(it.category)}</span>`);
+    return out.join(" ");
+  }
+
+  function emptyState() {
+    return `<div class="state">
+      <h2>The catalog is filling up</h2>
+      <p>Stickers are generated from the daily image collection. As soon as the first packs are published, they show up right here — no need to reload.</p>
+      <button class="btn" id="again">Check again</button></div>`;
+  }
+  function errorState() {
+    return `<div class="state">
+      <h2>Couldn't reach the catalog</h2>
+      <p>The connection to the StickerDock backend failed. Check back in a moment.</p>
+      <button class="btn ghost" id="again">Retry</button></div>`;
+  }
+
+  function renderPacks(list) {
+    const items = list.filter(p => adult || (p.rating || "").toLowerCase() !== "adult");
+    if (!items.length) { view.innerHTML = emptyState(); wireAgain(); return; }
+    view.innerHTML = `<div class="grid packgrid">` + items.map(p => `
+      <button class="tile pack" data-id="${esc(p.id)}">
+        <div class="cover">${p.cover_path ? `<img loading="lazy" src="${img(p.cover_path)}" alt="">` : ""}</div>
+        <div class="pmeta">
+          <div class="row">${chips(p)}<span class="chip">${p.sticker_count ?? 0} stickers</span></div>
+          <h3>${esc(p.title) || "Untitled pack"}</h3>
+          <p>${esc(p.description) || ""}</p>
+        </div>
+      </button>`).join("") + `</div>`;
+    view.querySelectorAll(".pack").forEach(el => el.addEventListener("click", () => openPack(el.dataset.id, list)));
+  }
+
+  function renderStickers(list) {
+    const items = list.filter(s => adult || (s.rating || "").toLowerCase() !== "adult");
+    if (!items.length) { view.innerHTML = emptyState(); wireAgain(); return; }
+    view.innerHTML = `<div class="grid">` + items.map(s => `
+      <figure class="tile">
+        <div class="thumb"><img loading="lazy" src="${img(s.file_path)}" alt="${esc(s.caption) || "sticker"}"></div>
+        <figcaption class="tmeta">
+          <span class="cap">${esc(s.caption) || "&nbsp;"}</span>
+          <div class="row">${chips(s)}</div>
+        </figcaption>
+      </figure>`).join("") + `</div>`;
+  }
+
+  async function openPack(id, packs) {
+    const modal = document.getElementById("modal");
+    const meta = packs.find(p => p.id === id) || {};
+    modal.hidden = false;
+    modal.innerHTML = `<div class="sheet-bg"><div class="sheet" role="dialog" aria-modal="true" aria-label="${esc(meta.title)}">
+      <div class="head"><div><h2>${esc(meta.title) || "Pack"}</h2>
+      <div class="row" style="margin-top:6px">${chips(meta)}<span class="chip">${meta.sticker_count ?? 0} stickers</span></div></div>
+      <button class="close" aria-label="Close">✕</button></div>
+      <div id="sheetbody"><div class="spin"></div></div></div></div>`;
+    const bg = modal.querySelector(".sheet-bg");
+    const shut = () => { modal.hidden = true; modal.innerHTML = ""; };
+    bg.addEventListener("click", e => { if (e.target === bg) shut(); });
+    modal.querySelector(".close").addEventListener("click", shut);
+    try {
+      const stickers = await rpc("discover_pack_stickers", { p_pack: id });
+      document.getElementById("sheetbody").innerHTML = `<div class="grid">` + stickers.map(s => `
+        <figure class="tile"><div class="thumb"><img loading="lazy" src="${img(s.file_path)}" alt="${esc(s.caption)}"></div>
+        <figcaption class="tmeta"><span class="cap">${esc(s.caption) || "&nbsp;"}</span></figcaption></figure>`).join("") + `</div>`;
+    } catch {
+      document.getElementById("sheetbody").innerHTML = `<p class="sub">Couldn't load this pack's stickers.</p>`;
+    }
+  }
+
+  function wireAgain() { const b = document.getElementById("again"); if (b) b.addEventListener("click", () => load(true)); }
+
+  async function load(force) {
+    view.innerHTML = `<div class="spin" aria-label="Loading"></div>`;
+    try {
+      if (tab === "packs") {
+        if (force || !cache.packs) cache.packs = await api("discover_packs?select=*&order=updated_at.desc&limit=200");
+        renderPacks(cache.packs);
+        const n = cache.packs.filter(p => adult || (p.rating||"").toLowerCase() !== "adult").length;
+        foot.textContent = n ? `${n} pack${n>1?"s":""} published` : "";
+      } else {
+        if (force || !cache.stickers) cache.stickers = await api("discover_stickers?select=*&order=published_at.desc&limit=300");
+        renderStickers(cache.stickers);
+        const n = cache.stickers.filter(s => adult || (s.rating||"").toLowerCase() !== "adult").length;
+        foot.textContent = n ? `${n} sticker${n>1?"s":""} published` : "";
+      }
+    } catch {
+      view.innerHTML = errorState(); wireAgain(); foot.textContent = "";
+    }
+  }
+
+  function setTab(t) {
+    tab = t;
+    document.getElementById("tab-packs").setAttribute("aria-selected", t === "packs");
+    document.getElementById("tab-stickers").setAttribute("aria-selected", t === "stickers");
+    load(false);
+  }
+  document.getElementById("tab-packs").addEventListener("click", () => setTab("packs"));
+  document.getElementById("tab-stickers").addEventListener("click", () => setTab("stickers"));
+  document.getElementById("adult").addEventListener("change", e => { adult = e.target.checked; load(false); });
+  load(false);
+</script>
