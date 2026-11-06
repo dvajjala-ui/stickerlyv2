@@ -55,6 +55,22 @@ def test_claim_by_score_orders_and_claims_optimistically():
     assert json.loads(patch.content)["attempts"] == 1 and patch.headers["prefer"] == "return=representation"
 
 
+def test_reclaim_stale_resets_expired_rows_and_decrements_attempts():
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.method == "GET":  # find rows stuck past their lease
+            assert request.url.params["status"] == "eq.analyzing"
+            assert request.url.params["locked_until"].startswith("lt.")
+            return httpx.Response(200, json=[{"id": "a", "attempts": 2}, {"id": "b", "attempts": 1}])
+        return httpx.Response(200, json=[])  # PATCH back to screened
+    store, seen = make(handler)
+    assert store.reclaim_stale("analyzing", "screened") == 2
+    patches = [r for r in seen if r.method == "PATCH"]
+    assert len(patches) == 2
+    first = json.loads(patches[0].content)
+    assert first == {"status": "screened", "locked_until": None, "attempts": 1}  # 2 - 1
+    assert patches[0].url.params["id"] == "eq.a"
+
+
 def test_storage_upload_and_download_paths():
     store, seen = make(lambda r: httpx.Response(200, content=b"RIFF....WEBP") if r.method == "GET"
                        else httpx.Response(200, json={"Key": "stickers/a b.webp"}))
