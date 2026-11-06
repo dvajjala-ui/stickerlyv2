@@ -29,5 +29,6 @@ __all__ = ["AI", "AIError", "AIInvalid", "AIUnavailable", "Budget", "BudgetExhau
 
 
 def make_groq(env: Env, budget: Budget, ledger: Callable[[dict[str, Any]], None]) -> GroqAI:
-    client = GroqClient(env.groq_keys, budget=budget, ledger=ledger, max_wait_s=env.max_wait_s)
+    client = GroqClient(env.groq_keys, budget=budget, ledger=ledger, max_wait_s=env.max_wait_s,
+                        min_interval_s=env.min_interval_s)
     return GroqAI(client, env)

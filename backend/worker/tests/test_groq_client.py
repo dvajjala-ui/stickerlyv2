@@ -127,20 +127,34 @@ def test_analysis_schema_enumerates_categories_and_safety_fields():
 
 
 # ------------------------------------------------------------------ rate limits
-def test_429_rotates_to_next_key_honouring_retry_after():
+def test_429_cools_the_active_key_and_waits_instead_of_switching_keys():
     def handler(req, n):
-        if key_of(req) == KEYS[0]:
+        if n == 1:
             return httpx.Response(429, headers={"retry-after": "20"}, json={"error": {"code": "rate_limit_exceeded"}})
         return httpx.Response(200, json=ok_body({"captions": []}))
     client, ledger, clock, requests = make(handler)
     result = chat(client)
-    assert result.key_slot == 1
-    assert [key_of(r) for r in requests] == list(KEYS)
-    assert [(row["key_slot"], row["status"], row["ok"]) for row in ledger] == [(0, 429, False), (1, 200, True)]
-    assert client.slots[0].cooldown_until == pytest.approx(clock.t + 20)
-    # the cooling key is skipped on the next call
-    chat(client)
-    assert key_of(requests[-1]) == KEYS[1]
+    assert result.key_slot == 0
+    assert [key_of(r) for r in requests] == [KEYS[0], KEYS[0]]
+    assert [(row["key_slot"], row["status"], row["ok"]) for row in ledger] == [(0, 429, False), (0, 200, True)]
+    assert clock.sleeps == [20.0]
+
+
+def test_backup_keys_are_never_used_to_get_around_a_rate_limit():
+    client, _, _, requests = make(lambda req, n: httpx.Response(429, headers={"retry-after": "3600"}))
+    with pytest.raises(RateLimited):
+        chat(client)
+    with pytest.raises(RateLimited):  # still cooling: no second request at all
+        chat(client)
+    assert [key_of(r) for r in requests] == [KEYS[0]]
+
+
+def test_requests_are_spaced_by_the_minimum_interval():
+    client, _, clock, requests = make(lambda req, n: httpx.Response(200, json=ok_body({"captions": []})))
+    client.min_interval_s = 2.5
+    for _ in range(3):
+        chat(client)
+    assert len(requests) == 3 and clock.sleeps == [2.5, 2.5]
 
 
 def test_single_key_waits_for_short_retry_after():
@@ -153,12 +167,12 @@ def test_single_key_waits_for_short_retry_after():
     assert clock.sleeps == [5.0]
 
 
-def test_all_keys_cooling_raises_rate_limited_and_refunds_budget():
+def test_long_cooldown_raises_rate_limited_and_refunds_budget():
     client, ledger, _, requests = make(lambda req, n: httpx.Response(429, headers={"retry-after": "3600"}))
     with pytest.raises(RateLimited) as info:
         chat(client)
     assert info.value.retry_in == pytest.approx(3600)
-    assert len(requests) == 2  # each key tried once
+    assert len(requests) == 1  # the active key only
     assert client.budget.used.get("text", 0) == 0
 
 

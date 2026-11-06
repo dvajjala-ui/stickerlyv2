@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import dataclasses
+import os
 import sys
 from pathlib import Path
 from typing import Any
@@ -8,6 +9,12 @@ from typing import Any
 import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+# Set before any fixture runs (module-scoped fixtures start before the autouse one below): a developer's real
+# .env must never load into a test process, or the CLI would call Groq/Supabase with real keys.
+os.environ["STICKERWORKER_NO_DOTENV"] = "1"
+for _name in ("GROQ_API_KEYS", "GROQ_API_KEY", "SUPABASE_URL", "SUPABASE_SERVICE_ROLE_KEY", "SUPABASE_SECRET_KEY",
+              "SUPABASE_DB_HOST", "SUPABASE_DB_USER", "SUPABASE_DB_PASSWORD"):
+    os.environ.pop(_name, None)
 
 from stickerworker.ai import FakeAI  # noqa: E402
 from stickerworker.analysis import Analysis  # noqa: E402

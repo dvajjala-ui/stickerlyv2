@@ -1,10 +1,14 @@
-"""Groq chat-completions client (OpenAI-compatible) with key failover, pacing and a call ledger.
+"""Groq chat-completions client (OpenAI-compatible): one key at a time, cooldowns, pacing and a call ledger.
 
-- Several keys (GROQ_API_KEYS) are tried in order; a key that gets HTTP 429 cools
-  down for `retry-after` (or the x-ratelimit reset) and the next key is used. Keys
-  are meant for failover or separate paid orgs, never to multiply free quota.
-- x-ratelimit-remaining-tokens/-requests are honoured before sending: the client
-  waits (up to max_wait_s) or raises RateLimited so the stage can stop cleanly.
+- One key at a time: the first key Groq has not rejected. The other keys in GROQ_API_KEYS are backups, used only
+  after the active key is rejected (HTTP 401/403). A rate limit (429) never moves work to another key: keys from
+  separate Groq accounts each carry their own free quota, and using them to get around a limit is not allowed
+  (keys of one organisation share the limit anyway).
+- Cooldown: a 429 cools the active key for `retry-after` (or the x-ratelimit reset). The client waits when the
+  cooldown is short (up to max_wait_s) and otherwise raises RateLimited, so the stage stops cleanly and the next
+  scheduled run continues where this one stopped.
+- Pacing: at least min_interval_s between requests, and x-ratelimit-remaining-tokens/-requests are honoured
+  before sending, so normal runs stay under the per-minute limits instead of hitting them.
 - Every HTTP attempt is logged through `ledger` with the key's slot index only.
 - Budget units are taken before sending and refunded when nothing was consumed.
 """
@@ -134,12 +138,14 @@ class GroqClient:
     def __init__(self, keys: Sequence[str], *, budget: Budget, ledger: Callable[[dict[str, Any]], None],
                  transport: httpx.BaseTransport | None = None, sleep: Callable[[float], None] = time.sleep,
                  clock: Callable[[], float] = time.monotonic, max_wait_s: float = 75.0,
-                 timeout_s: float = 120.0) -> None:
+                 timeout_s: float = 120.0, min_interval_s: float = 0.0) -> None:
         if not keys:
             raise NoUsableKeys("no_keys")
         self.slots = [KeySlot(index, key) for index, key in enumerate(keys)]
         self.budget = budget
         self.max_wait_s = max_wait_s
+        self.min_interval_s = min_interval_s
+        self._last_sent: float | None = None
         self._ledger = ledger
         self._sleep = sleep
         self._clock = clock
@@ -194,17 +200,22 @@ class GroqClient:
             wait = max(wait, slot.tokens_reset_at - now)
         return wait
 
+    def active(self) -> KeySlot:
+        """The key in use: the first one Groq has not rejected."""
+        for slot in self.slots:
+            if not slot.disabled:
+                return slot
+        raise NoUsableKeys("no_usable_keys")
+
     def _pick(self, estimate: int) -> KeySlot:
         while True:
-            usable = [slot for slot in self.slots if not slot.disabled]
-            if not usable:
-                raise NoUsableKeys("no_usable_keys")
+            slot = self.active()
             now = self._clock()
-            waits = [(self._wait_for(slot, estimate, now), slot) for slot in usable]
-            ready = [slot for wait, slot in waits if wait <= 0]
-            if ready:
-                return ready[0]
-            wait = min(w for w, _ in waits)
+            wait = self._wait_for(slot, estimate, now)
+            if self._last_sent is not None:
+                wait = max(wait, self._last_sent + self.min_interval_s - now)
+            if wait <= 0:
+                return slot
             if wait > self.max_wait_s:
                 raise RateLimited(wait)
             self._sleep(wait)
@@ -236,6 +247,7 @@ class GroqClient:
         while True:
             slot = self._pick(estimate)
             started = self._clock()
+            self._last_sent = started
             try:
                 response = self._http.post(API_URL, json=payload, headers={"Authorization": f"Bearer {slot.key}"})
             except httpx.TransportError as error:

@@ -56,6 +56,7 @@ class Env:
     vision_reasoning: str = "none"
     text_reasoning: str = "low"
     max_wait_s: float = 75.0
+    min_interval_s: float = 2.5
     rembg_model: str = "isnet-general-use"
     out_dir: Path = field(default_factory=default_out_dir)
 
@@ -91,6 +92,8 @@ class Env:
             vision_reasoning=text("GROQ_VISION_REASONING", cls.vision_reasoning),
             text_reasoning=text("GROQ_TEXT_REASONING", cls.text_reasoning),
             max_wait_s=_float(env.get("GROQ_MAX_WAIT_SECONDS"), 75.0, 0.0, 600.0),
+            # Gap between Groq requests: 2.5 s keeps one key under the free tier's 30 requests a minute.
+            min_interval_s=_float(env.get("GROQ_MIN_INTERVAL_SECONDS"), 2.5, 0.0, 60.0),
             rembg_model=text("REMBG_MODEL", cls.rembg_model) or cls.rembg_model,
             out_dir=Path(out) if out else default_out_dir(),
         )
