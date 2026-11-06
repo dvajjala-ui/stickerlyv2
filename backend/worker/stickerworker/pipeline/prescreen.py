@@ -24,6 +24,20 @@ MIN_SCORE = 2.5
 MAX_ATTEMPTS = 3
 
 
+TEXT_BONUS_MAX = 2.0
+
+
+def text_bonus(text: str | None) -> float:
+    """Images with words on them (captioned reactions, memes) are far more sticker-worthy than plain scenery.
+    Return a 0-2 bump to the prescreen score so they rank ahead for the limited vision budget. 0 when no real text."""
+    if not text:
+        return 0.0
+    words = [w for w in text.split() if len(w) >= 2]
+    if not words:
+        return 0.0
+    return round(min(TEXT_BONUS_MAX, 0.6 + 0.2 * len(words)), 2)
+
+
 def quality_problem(metrics: dict[str, float], score: float) -> str | None:
     if metrics["short_side"] < MIN_SIDE:
         return "too_small"
@@ -67,6 +81,11 @@ def screen(ctx: Context, row: Row, known: list[tuple[str, str]]) -> dict[str, An
     text = ocr.read_text(image)
     if text is not None:
         fields["ocr_text"] = text
+    bonus = text_bonus(text)
+    if bonus:
+        # Ranking only: the quality gate above already ran on the raw score, so this never admits a bad image.
+        fields["prescreen_score"] = round(min(10.0, score + bonus), 2)
+        fields["prescreen"]["text_bonus"] = bonus
     return {**fields, "status": "screened", "last_error": None}
 
 

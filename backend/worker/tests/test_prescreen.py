@@ -44,6 +44,34 @@ def test_quality_gates():
     assert 0 <= prescreen_score(good) <= 10
 
 
+def test_text_bonus_lifts_captioned_images_up_the_queue():
+    assert prescreen.text_bonus(None) == 0.0
+    assert prescreen.text_bonus("") == 0.0
+    assert prescreen.text_bonus("a b c") == 0.0  # no word >= 2 chars
+    one, three = prescreen.text_bonus("ok"), prescreen.text_bonus("kya baat hai")
+    assert 0 < one < three <= 2.0
+    assert prescreen.text_bonus("when monday hits you after the weekend") == 2.0  # capped
+
+
+def test_screen_boosts_score_when_the_image_has_text(ctx, store, monkeypatch):
+    data = encode(photo(seed=21), "JPEG", quality=90)
+    import hashlib
+    sha = hashlib.sha256(data).hexdigest()
+    path = f"upload/{sha[:2]}/{sha}.jpg"
+    store.upload("sources", path, data, "image/jpeg")
+    row = store.insert_source({"sha256": sha, "storage_path": path, "mime": "image/jpeg",
+                               "bytes": len(data), "site": "upload", "status": "new"})
+    from stickerworker.imaging.metrics import measure
+    from PIL import Image
+    raw = prescreen_score(measure(Image.open(__import__("io").BytesIO(data)).convert("RGB")))
+    monkeypatch.setattr(prescreen.ocr, "read_text", lambda _img: "kya baat hai bhai")
+    prescreen.run(ctx, 10)
+    screened = store.source(row["id"])
+    assert screened["status"] == "screened"
+    assert screened["ocr_text"] == "kya baat hai bhai"
+    assert screened["prescreen_score"] > raw  # the text bonus lifted it above the raw quality score
+
+
 def test_intake_dedupes_by_sha_and_blocks_takedowns(store, tmp_path):
     folder = tmp_path / "export"
     (folder / "nested").mkdir(parents=True)
