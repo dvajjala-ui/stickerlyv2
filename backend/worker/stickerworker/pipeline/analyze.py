@@ -64,6 +64,8 @@ def run(ctx: Context, limit: int) -> dict[str, Any]:
     remaining = ctx.ai.remaining("vision")
     if remaining <= 0:
         return {"skipped": "vision_budget_exhausted"}
+    # Recover any rows a previous run left in 'analyzing' past their lease (e.g. the process was killed mid-run).
+    reclaimed = ctx.store.reclaim_stale("analyzing", "screened") or 0
     queue = ctx.store.claim_sources("screened", "analyzing", min(limit, remaining), LEASE_SECONDS, by_score=True)
     counts: Counter[str] = Counter(claimed=len(queue))
     batch_size = max(1, ctx.ai.images_per_request())
@@ -114,4 +116,6 @@ def run(ctx: Context, limit: int) -> dict[str, Any]:
     for row in unprocessed:
         _release(ctx, row)
     counts["released"] += len(unprocessed)
+    if reclaimed:
+        counts["reclaimed"] = reclaimed
     return {**counts, **({"stopped": stopped} if stopped else {})}

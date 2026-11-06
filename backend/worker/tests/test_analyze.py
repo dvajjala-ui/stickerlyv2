@@ -77,6 +77,25 @@ def test_ai_stop_releases_sources_with_attempts_restored(ctx, store):
     assert store.source(broken)["status"] == "failed"
 
 
+def test_a_killed_run_leaves_rows_in_analyzing_that_the_next_run_reclaims(ctx, store):
+    # Simulate a crashed run: a source stuck in 'analyzing' with an expired lease and a bumped attempt counter.
+    stuck = add_source(store, 7, 8.0)
+    store.update_source(stuck, {"status": "analyzing", "locked_until": "2000-01-01T00:00:00+00:00", "attempts": 1})
+    ctx.ai = StubAI()
+    summary = analyze.run(ctx, 10)
+    assert summary["reclaimed"] == 1
+    row = store.source(stuck)
+    assert row["status"] == "analyzed" and row["locked_until"] is None  # reclaimed, then analysed
+
+
+def test_a_fresh_analyzing_lease_is_not_reclaimed(ctx, store):
+    live = add_source(store, 8, 8.0)
+    store.update_source(live, {"status": "analyzing", "locked_until": "2999-01-01T00:00:00+00:00"})
+    ctx.ai = StubAI()
+    summary = analyze.run(ctx, 10)
+    assert summary.get("reclaimed", 0) == 0 and store.source(live)["status"] == "analyzing"
+
+
 def test_budget_gates_the_stage(ctx, store):
     add_source(store, 1, 5.0)
     ctx.ai = StubAI(remaining=0)

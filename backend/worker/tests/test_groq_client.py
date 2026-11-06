@@ -279,6 +279,21 @@ def test_vision_strict_schema_rejected_falls_back_to_json_object():
     assert client.budget.used["vision"] == 2  # the rejected attempt was refunded
 
 
+def test_vision_json_validate_failed_falls_back_to_json_object():
+    # The model accepts the strict schema but returns JSON the grammar rejects (HTTP 400 json_validate_failed,
+    # common on qwen vision). The next attempt must retry in json_object mode and succeed.
+    def handler(req, n):
+        body = json.loads(req.content)
+        if body["response_format"]["type"] == "json_schema":
+            return httpx.Response(400, json={"error": {"code": "json_validate_failed"}})
+        return httpx.Response(200, json=ok_body({"images": [vision_item(0)]}))
+    client, _, _, requests = make(handler)
+    ai = GroqAI(client, Env())
+    analyses = ai.analyze([VisionInput("a", b"\xff\xd8\xffjpeg-a")], CATEGORIES, [])
+    assert len(analyses) == 1
+    assert [json.loads(r.content)["response_format"]["type"] for r in requests] == ["json_schema", "json_object"]
+
+
 def test_images_per_request_respects_tpm():
     client, _, _, _ = make(lambda req, n: httpx.Response(200))
     assert GroqAI(client, Env(vision_tpm=8000)).images_per_request() == 2

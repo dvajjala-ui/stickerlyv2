@@ -210,6 +210,17 @@ class LocalStore:
                                 "updated_at = ? where id = ?", (next_status, lease, self._stamp(), source_id))
         return [self.source(i) for i in ids]
 
+    def reclaim_stale(self, status: str, back_to: str) -> int:
+        with self.db:
+            stale = [r["id"] for r in self.db.execute(
+                "select id from source_images where status = ? and locked_until is not null and locked_until < ?",
+                (status, self._stamp()))]
+            for source_id in stale:
+                self.db.execute("update source_images set status = ?, locked_until = null, "
+                                "attempts = max(0, attempts - 1), updated_at = ? where id = ?",
+                                (back_to, self._stamp(), source_id))
+        return len(stale)
+
     def source(self, source_id: str) -> Row:
         rows = self._select("source_images", "select * from source_images where id = ?", (source_id,))
         if not rows:

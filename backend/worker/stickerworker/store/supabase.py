@@ -157,6 +157,16 @@ class SupabaseStore:
     def update_source(self, source_id: str, fields: Row) -> None:
         self._update("source_images", {"id": f"eq.{source_id}"}, fields)
 
+    def reclaim_stale(self, status: str, back_to: str) -> int:
+        now = iso(utcnow())
+        stale = self._select("source_images", {"select": "id,attempts", "status": f"eq.{status}",
+                                               "locked_until": f"lt.{now}", "limit": "500"})
+        for row in stale:
+            self._update("source_images", {"id": f"eq.{row['id']}"},
+                         {"status": back_to, "locked_until": None,
+                          "attempts": max(0, int(row.get("attempts", 1)) - 1)})
+        return len(stale)
+
     def insert_source(self, row: Row) -> Row | None:
         rows = self._insert("source_images", [row], on_conflict="sha256", ignore_duplicates=True)
         return rows[0] if rows else None

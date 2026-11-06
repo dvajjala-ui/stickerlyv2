@@ -11,7 +11,7 @@ from ..config import Env
 from ..textutil import clean_text, strip_emoji
 from . import prompts, schemas
 from .base import AIInvalid, CaptionRequest, PackName, PackNameRequest, QualityInput, QualityVerdict, VisionInput
-from .groq import IMAGE_TOKENS, ChatResult, GroqClient, GroqError, SchemaRejected
+from .groq import IMAGE_TOKENS, ChatResult, GroqClient, GroqError, InvalidResponse, SchemaRejected
 
 
 def _reasoning(value: str) -> dict[str, Any]:
@@ -64,6 +64,14 @@ class GroqAI:
         try:
             return self.client.chat_json(messages=messages, schema=schema, schema_name=name, **common)
         except SchemaRejected:
+            # The model rejects response_format=json_schema outright: ask for a plain JSON object instead.
+            return self.client.chat_json(messages=_inline(messages, schema), schema=None, **common)
+        except InvalidResponse as error:
+            # The model accepted the strict schema but produced JSON the grammar rejected (common on vision
+            # models like qwen). Retry once in json_object mode with the schema inlined in the prompt, which the
+            # same model usually satisfies. Other invalid responses (truncation, refusal) are not retried here.
+            if error.code != "json_validate_failed":
+                raise
             return self.client.chat_json(messages=_inline(messages, schema), schema=None, **common)
 
     def analyze(self, items: Sequence[VisionInput], categories: Sequence[str],
