@@ -317,7 +317,8 @@
       <div class="head"><div><h2>${esc(meta.title) || "Pack"}</h2></div>
         <button class="btn ghost copy" style="padding:7px 14px">Copy link</button>
         <button class="close" aria-label="Close">✕</button></div>
-      <p class="note">${meta.sticker_count ?? 0} stickers · open this pack in the StickerDock app to add it to WhatsApp.</p>
+      <p class="note">${meta.sticker_count ?? 0} stickers · open this pack in the StickerDock app to add it to WhatsApp.
+        · <a class="report" href="mailto:support@stickerdock.app?subject=${encodeURIComponent("Report pack: " + (meta.title || id))}&body=${encodeURIComponent("Pack id: " + id + "\nReason: ")}">Report</a></p>
       <div id="sheetbody"><div class="spin"></div></div></div></div>`;
     const bg = modal.querySelector(".sheet-bg");
     const shut = () => { if (new URLSearchParams(location.search).get("pack")) { try { history.pushState({}, "", location.pathname); } catch {} } closeSheet(); };

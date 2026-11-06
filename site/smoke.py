@@ -70,6 +70,8 @@ def main():
         if page.query_selector(".sheet") is None: failures.append("pack sheet did not open")
         if "pack=p1" not in page.url: failures.append(f"deep link not set: {page.url}")
         if page.query_selector(".sheet .copy") is None: failures.append("copy-link button missing")
+        rep = page.query_selector(".sheet a.report")
+        if rep is None or not (rep.get_attribute("href") or "").startswith("mailto:"): failures.append("report link missing/not mailto")
         page.click(".sheet .close"); page.wait_for_timeout(200)  # close before interacting with the page again
         if page.query_selector(".sheet") is not None: failures.append("sheet did not close")
         # 6) Stickers tab
