@@ -75,6 +75,13 @@ def main():
         # 6) Stickers tab
         page.click("#tab-stickers"); page.wait_for_timeout(300)
         if len(page.query_selector_all("figure.tile")) < 1: failures.append("stickers tab rendered none")
+        # 6b) Theme toggle sets data-theme and persists across reload
+        page.click("#theme"); page.wait_for_timeout(150)
+        theme = page.evaluate("document.documentElement.getAttribute('data-theme')")
+        if theme not in ("dark", "light"): failures.append(f"theme toggle did not set data-theme: {theme}")
+        page.reload(wait_until="networkidle"); page.wait_for_timeout(250)
+        if page.evaluate("document.documentElement.getAttribute('data-theme')") != theme:
+            failures.append("theme choice did not persist across reload")
         # 7) Deep-link load: fresh page at ?pack=p1 opens the sheet
         page2 = browser.new_page(); page2.route("**/*", route)
         page2.goto(base + "?pack=p1", wait_until="networkidle"); page2.wait_for_timeout(500)

@@ -15,6 +15,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=Hanken+Grotesk:wght@400;500;600;700&display=swap">
+<script>try{var _t=localStorage.getItem("sd-theme");if(_t==="dark"||_t==="light")document.documentElement.setAttribute("data-theme",_t);}catch(e){}</script>
 <style>
   /* Identity: ink + volt-lime. Layout: hero → sticky search/filter bar → tabbed grid; pack opens a bottom sheet. */
   :root {
@@ -44,6 +45,13 @@
   .nav { margin-left: auto; display: flex; gap: 18px; align-items: center; font-weight: 600; font-size: .9rem; }
   .nav a { color: #d8d4c4; text-decoration: none; }
   .nav a:hover { color: var(--volt); }
+  .themebtn { font: inherit; font-size: 1.1rem; line-height: 1; background: rgba(255,255,255,.08); color: #d8d4c4; border: 0; border-radius: 999px; width: 34px; height: 34px; cursor: pointer; }
+  .themebtn:hover { color: var(--volt); }
+  .skel { background: var(--panel); border: 1px solid var(--line); border-radius: 16px; overflow: hidden; }
+  .skel .sk { background: linear-gradient(90deg, var(--line) 25%, color-mix(in srgb, var(--line) 50%, transparent) 50%, var(--line) 75%); background-size: 200% 100%; animation: shimmer 1.3s linear infinite; }
+  .skel .sk.cov { aspect-ratio: 16/10; } .skel .sk.ln { height: 12px; margin: 10px 12px; border-radius: 6px; } .skel .sk.ln2 { width: 60%; }
+  @keyframes shimmer { to { background-position: -200% 0; } }
+  @media (prefers-reduced-motion: reduce) { .skel .sk { animation: none; } }
   .headline { font-family: var(--display); font-weight: 800; font-size: clamp(1.9rem, 6vw, 3.4rem); line-height: 1.02; letter-spacing: -.03em; text-wrap: balance; margin: 0 0 12px; max-width: 16ch; }
   .headline em { color: var(--volt); font-style: normal; }
   .tagline { color: #cfccbe; font-size: clamp(1rem, 2.5vw, 1.15rem); max-width: 54ch; margin: 0 0 22px; }
@@ -139,6 +147,7 @@
       <nav class="nav">
         <a href="#how">How it works</a>
         <a href="#why">Why us</a>
+        <button id="theme" class="themebtn" aria-label="Switch theme" title="Switch light / dark">◐</button>
       </nav>
     </div>
     <h1 class="headline">Hinglish stickers that <em>actually</em> land.</h1>
@@ -212,8 +221,16 @@
   const foot = document.getElementById("foot");
   const catsEl = document.getElementById("cats");
   const esc = (s) => (s ?? "").replace(/[&<>"]/g, c => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;" }[c]));
-  let tab = "packs", adult = false, cat = "", q = "";
+  const store = { get(k){ try { return localStorage.getItem(k); } catch { return null; } },
+                  set(k,v){ try { localStorage.setItem(k,v); } catch {} } };
+  let tab = store.get("sd-tab") === "stickers" ? "stickers" : "packs";
+  let adult = store.get("sd-adult") === "1";
+  let cat = "", q = "";
   let cache = { packs: null, stickers: null };
+  const skeletons = (n=8) => `<div class="grid${tab==="packs"?" packgrid":""}">` +
+    Array.from({length:n}).map(() => tab==="packs"
+      ? `<div class="skel"><div class="sk cov"></div><div class="sk ln"></div><div class="sk ln ln2"></div></div>`
+      : `<div class="skel"><div class="sk cov" style="aspect-ratio:1"></div><div class="sk ln"></div></div>`).join("") + `</div>`;
 
   async function api(path) {
     const r = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, { headers: H });
@@ -323,7 +340,7 @@
   window.addEventListener("popstate", syncFromUrl);
 
   async function load(force) {
-    view.innerHTML = `<div class="spin" aria-label="Loading"></div>`;
+    view.innerHTML = skeletons();
     try {
       if (force || !cache.packs) cache.packs = await api("discover_packs?select=*&order=updated_at.desc&limit=200");
       if (force || !cache.stickers) cache.stickers = await api("discover_stickers?select=*&order=published_at.desc&limit=400");
@@ -332,14 +349,27 @@
     } catch { view.innerHTML = errorState(); wire(); }
   }
   function setTab(t) {
-    tab = t; cat = "";
+    tab = t; cat = ""; store.set("sd-tab", t);
     document.getElementById("tab-packs").setAttribute("aria-selected", t === "packs");
     document.getElementById("tab-stickers").setAttribute("aria-selected", t === "stickers");
     renderCats(cache[t] || []); render();
   }
   document.getElementById("tab-packs").addEventListener("click", () => setTab("packs"));
   document.getElementById("tab-stickers").addEventListener("click", () => setTab("stickers"));
-  document.getElementById("adult").addEventListener("change", e => { adult = e.target.checked; render(); });
+  const adultBox = document.getElementById("adult");
+  adultBox.checked = adult;
+  adultBox.addEventListener("change", e => { adult = e.target.checked; store.set("sd-adult", adult ? "1" : "0"); render(); });
+  document.getElementById("tab-packs").setAttribute("aria-selected", tab === "packs");
+  document.getElementById("tab-stickers").setAttribute("aria-selected", tab === "stickers");
+
+  // Theme toggle: cycle light <-> dark, remembered per device; default follows the system.
+  const themeBtn = document.getElementById("theme");
+  const curTheme = () => document.documentElement.getAttribute("data-theme")
+    || (matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
+  themeBtn.addEventListener("click", () => {
+    const next = curTheme() === "dark" ? "light" : "dark";
+    document.documentElement.setAttribute("data-theme", next); store.set("sd-theme", next);
+  });
   let t; document.getElementById("q").addEventListener("input", e => { clearTimeout(t); t = setTimeout(() => { q = e.target.value.trim().toLowerCase(); render(); }, 160); });
   load(false).then(syncFromUrl);  // open a shared ?pack=<id> once the catalog has loaded
 </script>
