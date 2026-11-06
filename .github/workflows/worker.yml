@@ -59,6 +59,7 @@ jobs:
     env:
       SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
       SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
       GROQ_API_KEYS: ${{ secrets.GROQ_API_KEYS }}
       # Model ids rotate (preview models); override with repository variables when they do.
       GROQ_VISION_MODEL: ${{ vars.GROQ_VISION_MODEL || 'qwen/qwen3.8-27b' }}

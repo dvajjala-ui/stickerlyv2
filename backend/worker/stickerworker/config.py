@@ -78,7 +78,8 @@ class Env:
         out = text("STICKERWORKER_OUT", "")
         return cls(
             supabase_url=text("SUPABASE_URL", "").rstrip("/"),
-            supabase_key=text("SUPABASE_SERVICE_ROLE_KEY", ""),
+            # New Supabase keys (sb_secret_...) or the legacy service_role JWT.
+            supabase_key=text("SUPABASE_SECRET_KEY", "") or text("SUPABASE_SERVICE_ROLE_KEY", ""),
             groq_keys=parse_keys(env.get("GROQ_API_KEYS"), env.get("GROQ_API_KEY")),
             vision_model=text("GROQ_VISION_MODEL", cls.vision_model) or cls.vision_model,
             text_model=text("GROQ_TEXT_MODEL", cls.text_model) or cls.text_model,

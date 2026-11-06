@@ -16,7 +16,7 @@ from stickerworker.pipeline.context import Context  # noqa: E402
 from stickerworker.settings import PublishPolicy, parse_settings  # noqa: E402
 from stickerworker.store import LocalStore  # noqa: E402
 
-SECRET_VARS = ("GROQ_API_KEYS", "GROQ_API_KEY", "SUPABASE_URL", "SUPABASE_SERVICE_ROLE_KEY")
+SECRET_VARS = ("GROQ_API_KEYS", "GROQ_API_KEY", "SUPABASE_URL", "SUPABASE_SERVICE_ROLE_KEY", "SUPABASE_SECRET_KEY")
 
 
 @pytest.fixture(autouse=True)
@@ -24,6 +24,7 @@ def no_secrets(monkeypatch: pytest.MonkeyPatch) -> None:
     """Tests never touch the network or real credentials."""
     for name in SECRET_VARS:
         monkeypatch.delenv(name, raising=False)
+    monkeypatch.setenv("STICKERWORKER_NO_DOTENV", "1")  # a developer's real .env must never reach tests
 
 
 @pytest.fixture

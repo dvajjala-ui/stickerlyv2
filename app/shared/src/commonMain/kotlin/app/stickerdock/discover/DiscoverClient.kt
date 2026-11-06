@@ -138,7 +138,11 @@ class DiscoverClient private constructor(private val base: String, private val a
             val http = HttpClient {
                 install(ContentNegotiation) { json(Json { ignoreUnknownKeys = true; explicitNulls = false }) }
                 install(HttpTimeout) { requestTimeoutMillis = 20_000; connectTimeoutMillis = 10_000 }
-                defaultRequest { header("apikey", anonKey); header("Authorization", "Bearer $anonKey") }
+                defaultRequest {
+                    header("apikey", anonKey)
+                    // New publishable keys (sb_publishable_…) aren't JWTs: Supabase wants them in `apikey` only.
+                    if (!anonKey.startsWith("sb_")) header("Authorization", "Bearer $anonKey")
+                }
             }
             return DiscoverClient(base, anonKey, http)
         }

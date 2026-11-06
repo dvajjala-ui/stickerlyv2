@@ -21,6 +21,8 @@ ocr = ["pytesseract>=0.3.10"]
 # Subject cutout. The worker only ever loads birefnet-general or isnet-general-use,
 # never rembg's default (non-commercial) model.
 cutout = ["rembg[cpu]>=2.0.60"]
+# Applying the Supabase migrations over Postgres (python -m stickerworker migrate).
+db = ["psycopg[binary]>=3.2"]
 dev = ["pytest>=8"]
 
 [project.scripts]

@@ -26,6 +26,25 @@ def _utf8_stdout() -> None:
             reconfigure(encoding="utf-8", errors="replace")
 
 
+def load_dotenv(path: Path | None = None, environ: dict[str, str] | None = None) -> int:
+    """Fills unset variables from the repository's .env (KEY=VALUE lines); real environment variables win."""
+    target = os.environ if environ is None else environ
+    file = path or Path(__file__).resolve().parents[3] / ".env"
+    if not file.is_file():
+        return 0
+    loaded = 0
+    for line in file.read_text(encoding="utf-8-sig").splitlines():
+        line = line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, value = line.split("=", 1)
+        key, value = key.strip(), value.split(" #", 1)[0].strip().strip('"').strip("'")
+        if key and value and key not in target:
+            target[key] = value
+            loaded += 1
+    return loaded
+
+
 def _print(data: Any) -> None:
     print(json.dumps(data, indent=2, ensure_ascii=False, default=str))
 
@@ -47,12 +66,14 @@ def build_parser() -> argparse.ArgumentParser:
     intake.add_argument("--dry-run", action="store_true")
     pending = sub.add_parser("pending", help="print queue counts (for CI gating)")
     pending.add_argument("--github-output", action="store_true", help="also write work=/media= to $GITHUB_OUTPUT")
+    migrate = sub.add_parser("migrate", help="apply backend/supabase/migrations to SUPABASE_DB_* (each file once)")
+    migrate.add_argument("--dry-run", action="store_true", help="list the files that would be applied")
     return parser
 
 
 def _supabase(env: Env) -> SupabaseStore | None:
     if not env.has_supabase:
-        print("SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are required (or use --local DIR).", file=sys.stderr)
+        print("SUPABASE_URL and SUPABASE_SECRET_KEY are required (in .env or the environment), or use --local DIR.", file=sys.stderr)
         return None
     return SupabaseStore(env.supabase_url, env.supabase_key)
 
@@ -129,13 +150,20 @@ def cmd_pending(args: argparse.Namespace, env: Env) -> int:
 def main(argv: list[str] | None = None) -> int:
     _utf8_stdout()
     args = build_parser().parse_args(argv)
+    if not os.environ.get("STICKERWORKER_NO_DOTENV"):
+        load_dotenv()
     env = Env.from_environ()
     try:
         if args.command == "run":
             return cmd_run(args, env)
         if args.command == "intake":
             return cmd_intake(args, env)
+        if args.command == "migrate":
+            from .migrate import apply
+            done = apply(dry_run=args.dry_run)
+            _print({"applied" if not args.dry_run else "would_apply": done})
+            return 0
         return cmd_pending(args, env)
-    except (StoreError, FileNotFoundError) as error:
+    except (StoreError, FileNotFoundError, RuntimeError) as error:
         print(f"error: {error}", file=sys.stderr)
         return 2

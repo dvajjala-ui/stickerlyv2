@@ -57,6 +57,10 @@ create table if not exists trends (
 create table if not exists ai_calls (id integer primary key autoincrement, at text not null, provider text not null,
   model text not null, key_slot integer, purpose text not null, ok integer not null, status integer,
   input_tokens integer, output_tokens integer, latency_ms integer, error text);
+create table if not exists collected_images (id text primary key, source text not null, topic_key text not null,
+  source_page_url text not null, source_image_url text not null, storage_path text not null unique,
+  sha256 text not null unique, mime_type text not null, rights_status text not null default 'reference_only',
+  collected_at text not null);
 create table if not exists worker_runs (id integer primary key autoincrement, started_at text not null,
   finished_at text, stage text not null, ok integer, summary text);
 """
@@ -378,6 +382,17 @@ class LocalStore:
         self._refresh_pack(pack_id, cursor.rowcount)
 
     # ------------------------------------------------------------ trends
+    def handnavigate_images(self, limit: int) -> list[Row]:
+        return self._select("collected_images", "select * from collected_images order by collected_at desc limit ?",
+                            (limit,))
+
+    def add_handnavigate_image(self, row: Row, data: bytes) -> None:
+        """Test/dev helper: what HandNavigate's import does on the VM (row + object in its bucket)."""
+        self.upload("handnavigate-images", row["storage_path"], data, row["mime_type"])
+        with self.db:
+            self._insert("collected_images", {"id": str(uuid.uuid4()), "collected_at": self._stamp(),
+                                              "rights_status": "reference_only", **row})
+
     def upsert_trends(self, rows: Sequence[Row]) -> int:
         for row in rows:
             data = self._encode("trends", {"id": str(uuid.uuid4()), "day": ist_day(self._now()).isoformat(),

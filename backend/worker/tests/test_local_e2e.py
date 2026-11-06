@@ -96,7 +96,7 @@ def test_ledger_and_runs_are_recorded(run_dir):
     assert calls and {c["provider"] for c in calls} == {"fake"}
     assert {c["purpose"] for c in calls} >= {"analyze", "caption", "judge", "pack_title"}
     runs = store.rows("worker_runs")
-    assert {r["stage"] for r in runs} == {"trends", "prescreen", "analyze", "create", "compose"}
+    assert {r["stage"] for r in runs} == {"trends", "library", "prescreen", "analyze", "create", "compose"}
     assert all(r["ok"] and r["finished_at"] for r in runs)
 
 

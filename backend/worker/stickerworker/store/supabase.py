@@ -37,6 +37,15 @@ def _safe_detail(response: httpx.Response) -> str:
     return " ".join(parts)[:200]
 
 
+def auth_headers(key: str) -> dict[str, str]:
+    """New keys (sb_secret_/sb_publishable_) go only in `apikey`: they aren't JWTs, and Supabase says not to send them
+    as a Bearer token. The legacy service_role JWT keeps both headers."""
+    headers = {"apikey": key, "User-Agent": "stickerworker/0.1"}
+    if not key.startswith("sb_"):
+        headers["Authorization"] = f"Bearer {key}"
+    return headers
+
+
 class SupabaseStore:
     kind = "supabase"
 
@@ -46,9 +55,8 @@ class SupabaseStore:
         if not (base.startswith("https://") or base.startswith(("http://localhost", "http://127.0.0.1"))):
             raise StoreError("SUPABASE_URL must be an https:// URL")
         if not key:
-            raise StoreError("SUPABASE_SERVICE_ROLE_KEY is not set")
-        self._http = httpx.Client(base_url=base, timeout=timeout, transport=transport, headers={
-            "apikey": key, "Authorization": f"Bearer {key}", "User-Agent": "stickerworker/0.1"})
+            raise StoreError("SUPABASE_SECRET_KEY is not set")
+        self._http = httpx.Client(base_url=base, timeout=timeout, transport=transport, headers=auth_headers(key))
         self._sleep = sleep
 
     def close(self) -> None:
@@ -244,6 +252,11 @@ class SupabaseStore:
             self._call("DELETE", "/rest/v1/pack_items", params={"pack_id": f"eq.{pack_id}", "sticker_id": _in(batch)})
 
     # ------------------------------------------------------------ trends
+    def handnavigate_images(self, limit: int) -> list[Row]:
+        return self._select_all("collected_images", {
+            "select": "id,source,topic_key,source_page_url,source_image_url,storage_path,sha256,mime_type,rights_status,"
+                      "collected_at", "order": "collected_at.desc"}, cap=limit)
+
     def upsert_trends(self, rows: Sequence[Row]) -> int:
         if rows:
             self._insert("trends", rows, returning=False, on_conflict="day,title", merge=True)

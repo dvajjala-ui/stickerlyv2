@@ -167,3 +167,44 @@ def test_dry_run_store_sends_only_reads(tmp_path):
     assert {r.method for r in seen} == {"GET"}
     assert (tmp_path / "preview" / "stickers" / "s.webp").read_bytes() == b"bytes"
     assert dry.summary()["update_source"] == 1 and dry.summary()["upload"] == 1
+
+
+def test_new_secret_keys_go_only_in_the_apikey_header():
+    seen = []
+    store = SupabaseStore(URL, "sb_secret_abc123", transport=httpx.MockTransport(
+        lambda r: (seen.append(r), httpx.Response(200, json=[]))[1]), sleep=lambda s: None)
+    store.load_settings()
+    assert seen[0].headers["apikey"] == "sb_secret_abc123"
+    assert "authorization" not in seen[0].headers
+
+
+def test_dotenv_fills_only_unset_values(tmp_path):
+    from stickerworker.cli import load_dotenv
+    file = tmp_path / ".env"
+    lines = ["# comment", "SUPABASE_URL=https://x.supabase.co", "SUPABASE_SECRET_KEY=sb_secret_1   # note",
+             "GROQ_API_KEYS=", "EXISTING=from-file"]
+    file.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    env = {"EXISTING": "from-env"}
+    assert load_dotenv(file, env) == 2
+    assert env == {"EXISTING": "from-env", "SUPABASE_URL": "https://x.supabase.co", "SUPABASE_SECRET_KEY": "sb_secret_1"}
+
+
+def test_migrations_apply_in_order_once_and_refuse_edited_files(tmp_path):
+    from stickerworker.migrate import connection_settings, pending
+    (tmp_path / "002_b.sql").write_text("select 2;", encoding="utf-8")
+    (tmp_path / "001_a.sql").write_text("select 1;", encoding="utf-8")
+    todo = pending({}, tmp_path)
+    assert [name for name, _, _ in todo] == ["001_a.sql", "002_b.sql"]
+    applied = {todo[0][0]: todo[0][1]}
+    assert [name for name, _, _ in pending(applied, tmp_path)] == ["002_b.sql"]
+    with pytest.raises(RuntimeError, match="changed after it was applied"):
+        pending({"001_a.sql": "0" * 64}, tmp_path)
+    with pytest.raises(RuntimeError, match="SUPABASE_DB_HOST"):
+        connection_settings({})
+    assert connection_settings({"SUPABASE_DB_HOST": "h", "SUPABASE_DB_USER": "u", "SUPABASE_DB_PASSWORD": "p"})["dbname"] == "postgres"
+
+
+def test_the_real_migration_folder_is_in_order():
+    from stickerworker.migrate import MIGRATIONS, pending
+    names = [name for name, _, _ in pending({}, MIGRATIONS)]
+    assert names[:3] == ["20261105000001_core.sql", "20261105000002_pack_versions.sql", "20261105000003_quality_gate.sql"]

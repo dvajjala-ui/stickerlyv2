@@ -7,10 +7,10 @@ from collections.abc import Callable
 from datetime import timedelta
 from typing import Any
 
-from . import analyze, create, packs, prescreen, trends
+from . import analyze, create, library, packs, prescreen, trends
 from .context import Context
 
-STAGES = ("trends", "prescreen", "analyze", "create", "compose")
+STAGES = ("trends", "library", "prescreen", "analyze", "create", "compose")
 QUEUE_STAGES = ("prescreen", "analyze", "create")
 DEFAULT_LIMITS = {"prescreen": 50, "analyze": 6, "create": 20}
 LOCAL_LIMITS = {"prescreen": 1000, "analyze": 1000, "create": 1000}
@@ -64,6 +64,8 @@ def run_stages(ctx: Context, stage: str, limit: int | None = None, *, offline: b
         try:
             if name == "trends":
                 summary = trends.run(ctx, offline=offline)
+            elif name == "library":
+                summary = library.run(ctx)
             elif name == "compose":
                 summary = packs.run(ctx)
             else:
