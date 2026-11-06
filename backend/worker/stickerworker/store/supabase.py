@@ -214,6 +214,10 @@ class SupabaseStore:
     def count_stickers_since(self, since: datetime) -> int:
         return self._count("stickers", {"created_at": f"gte.{iso(since)}"})
 
+    def sticker_counts(self) -> dict[str, int]:
+        return {s: self._count("stickers", {"status": f"eq.{s}"})
+                for s in ("published", "held", "draft", "rejected", "taken_down")}
+
     def published_stickers(self, limit: int = 5000) -> list[Row]:
         return self._select_all("stickers", {
             "select": "id,kind,rating,category,quality,caption,tags,description,trend_id,file_path,"

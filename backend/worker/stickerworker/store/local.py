@@ -320,6 +320,10 @@ class LocalStore:
     def count_stickers_since(self, since: datetime) -> int:
         return self.db.execute("select count(*) from stickers where created_at >= ?", (iso(since),)).fetchone()[0]
 
+    def sticker_counts(self) -> dict[str, int]:
+        rows = self.db.execute("select status, count(*) as n from stickers group by status")
+        return {r["status"]: r["n"] for r in rows}
+
     def published_stickers(self, limit: int = 5000) -> list[Row]:
         return self._select("stickers", "select * from stickers where status = 'published' "
                                         "order by published_at desc, id desc limit ?", (limit,))

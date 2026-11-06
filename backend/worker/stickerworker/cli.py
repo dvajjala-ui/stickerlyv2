@@ -138,9 +138,12 @@ def status_summary(store: Store, now: Any = None) -> dict[str, Any]:
     from .timeutil import ist_day_start, utcnow
     moment = now or utcnow()
     packs = store.packs()
+    stickers = store.sticker_counts()
     return {
         "sources_pending": store.pending_counts(),
-        "stickers_published": len(store.published_stickers(limit=5000)),
+        "stickers": stickers,
+        "stickers_published": stickers.get("published", 0),
+        "stickers_held": stickers.get("held", 0),  # waiting for your review (weak quality or celebrity_review)
         "packs_total": len(packs),
         "packs_published": sum(1 for p in packs if p.get("status") == "published"),
         "ai_today": store.ai_usage_since(ist_day_start(moment)),
