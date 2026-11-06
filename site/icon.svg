@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="StickerDock">
+  <rect width="512" height="512" rx="112" fill="#15150f"/>
+  <rect x="112" y="112" width="150" height="150" rx="40" fill="#c8f135"/>
+  <rect x="112" y="300" width="100" height="100" rx="28" fill="#f3efe2"/>
+  <rect x="250" y="300" width="150" height="100" rx="28" fill="#c8f135" opacity="0.65"/>
+  <rect x="300" y="112" width="100" height="150" rx="34" fill="#f3efe2" opacity="0.85"/>
+</svg>

@@ -1,0 +1,12 @@
+{
+  "name": "StickerDock — Hinglish WhatsApp stickers",
+  "short_name": "StickerDock",
+  "description": "Fresh Hinglish & Bollywood reaction sticker packs for WhatsApp, updated daily.",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#15150f",
+  "theme_color": "#15150f",
+  "icons": [
+    { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
+}
