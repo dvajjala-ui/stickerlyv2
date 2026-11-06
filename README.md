@@ -13,6 +13,16 @@ Clean rebuild of [StickerDock v1](../sticker). Start with [docs/PRODUCT.md](docs
 | `backend/supabase/` | Postgres schema, RLS, public Discover API, `intake` Edge Function |
 | `backend/worker/` | Python AI sticker factory (pre-screen → Groq understanding → policy → recipes → packs) |
 | `admin/` | React admin panel (sources, stickers, packs, reports/takedown, trends, settings) |
+| `site/` | Public Discover storefront (static page; reads published packs/stickers with the publishable key) |
+
+**Going live & operating:** [docs/GO_LIVE_STATUS.md](docs/GO_LIVE_STATUS.md) (what's live, owner actions),
+[docs/DEPLOY.md](docs/DEPLOY.md) (Vercel for site + admin), [docs/ORACLE_VM.md](docs/ORACLE_VM.md) (the collector VM).
+**Product & planning:** [docs/PRODUCT_REVIEW.md](docs/PRODUCT_REVIEW.md) (user-centric review + roadmap),
+[docs/CONTENT_STRATEGY.md](docs/CONTENT_STRATEGY.md) (topics, voice, safety),
+[docs/V1_FEATURE_PARITY.md](docs/V1_FEATURE_PARITY.md) (v1→v2 audit),
+[docs/HANDNAVIGATE_PLAN.md](docs/HANDNAVIGATE_PLAN.md) (collection integration).
+
+Operator snapshot anytime: `cd backend/worker && python -m stickerworker status` (queue, published content, today's AI spend).
 
 ## Build the Android app (Windows, this PC)
 ```powershell
