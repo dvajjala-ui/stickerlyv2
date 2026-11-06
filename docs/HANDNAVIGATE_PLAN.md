@@ -12,17 +12,31 @@ StickerDock v2 lives in the **same project**, and the hand-off is a database rea
    prescreen → analyze → create → compose then make stickers and packs for Discover.
 3. The app's Discover feed reads the same project with its publishable key.
 
-| Done (6 Nov) | Where | Checked |
+| Done | Where | Checked |
 | --- | --- | --- |
-| `library` stage, `migrate` command, new `sb_` keys (apikey header only), `.env` loading | stickerlyv2 `main` | worker tests 207/207 |
-| Sticker topics (memes, Indian/Hinglish/reaction/Bollywood memes, funny animals), unverified until earned | handNavigation `main` (`migrations/003`) | agent tests 41/41 (2 skipped) |
+| `library` stage, `migrate` command, new `sb_` keys (apikey header only), `.env` loading | stickerlyv2 `main` | worker tests pass |
+| **v2 schema applied to the shared project** (core, pack_versions, quality_gate) via `migrate` | Supabase `kyvowdxtwazxhsdjajpm` | 19 tables + buckets present |
+| **One Groq key at a time** with cooldown + 2.5s pacing (5 separate free keys = failover, not quota stacking) | stickerlyv2 `main` | worker tests pass (7 Nov) |
+| Sticker topics (memes, Indian/Hinglish/reaction/Bollywood memes, funny animals) | handNavigation `main` (`migrations/003`) | agent tests 41/41 |
+| **+16 topics** (dank/dark/adult-humour/dirty-joke memes, funny, series, movie/old-movie/song memes, girls/boys/bro-code/love, reaction/funny/movie GIFs) | handNavigation `main` (`migrations/004`) | applied to DB (28 topics total) |
 | Largest `srcset` rendition (Pinterest originals/736x instead of 236 px previews) | handNavigation `main` | browser test with fallback |
-| `tools/go-live.ps1`: migrations → one worker run → release APK | stickerlyv2 `main` | parses; needs `.env` |
+| **Public Discover gallery** (reads published packs/stickers with the public key) | stickerlyv2 `main` (`site/`) + claude.ai Artifact | published; empty until content exists |
+| **Admin CI** (lint/test/build) | stickerlyv2 `main` | green |
+| `tools/go-live.ps1`: migrations → one worker run → release APK | stickerlyv2 `main` | parses; `.env` filled except the secret key |
 
-Waiting on the owner:
-- **`.env` values:** the VM's `windows-agent/.env` lines, the publishable key and the Groq keys.
-- **Earn the new topics on the VM:** `deploy/free-vm/earn-topics.sh`.
-- **Multi-job rotation:** daily jobs for 100 images a day (5 jobs of 20).
+Owner provided (7 Nov): publishable key, DB password, 5 Groq keys — all in the local git-ignored `.env`.
+
+**Blocked on one thing — the `sb_secret_…` key.** It was not in the paste. The worker needs a server-side key to
+read HandNavigate's private image bucket; without it no content is generated, so the gallery and the admin Sources
+page stay empty. Get it from Supabase → project `kyvowdxtwazxhsdjajpm` → Project Settings → API Keys → a `secret`
+key, and paste one line into `stickerdock-next/.env`: `SUPABASE_SECRET_KEY=sb_secret_...`. Then `tools/go-live.ps1`
+runs end to end.
+
+Still waiting on the owner (not blocking the above):
+- **Earn the new topics on the VM:** `deploy/free-vm/earn-topics.sh` (needs the signed-in profile; GIF collection
+  code for the three GIF topics is a follow-up).
+- **GIF collection support** in HandNavigate (bucket mime `image/gif` + prefer the animated original) — follow-up.
+- **Multi-job rotation:** daily jobs for ~100 images a day.
 
 The queue design below remains parked on branch `handnavigate-queue`. It is only needed if the two products ever move
 to separate Supabase projects.
