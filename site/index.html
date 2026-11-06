@@ -121,10 +121,12 @@
 
   .sheet-bg { position: fixed; inset: 0; background: rgba(10,10,6,.55); display: grid; place-items: end center; z-index: 30; }
   .sheet { background: var(--bg); width: 100%; max-width: 680px; max-height: 88vh; border-radius: 20px 20px 0 0; overflow: auto; box-shadow: 0 -10px 40px rgba(0,0,0,.3); padding: 20px max(16px, env(safe-area-inset-left,0px)) calc(24px + env(safe-area-inset-bottom,0px)); }
-  .sheet .head { display: flex; align-items: flex-start; gap: 12px; margin-bottom: 8px; }
+  .sheet .head { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+  .sheet .head > div:first-child { flex: 1; min-width: 0; }
   .sheet h2 { font-family: var(--display); font-weight: 800; font-size: 1.4rem; margin: 0; letter-spacing: -.02em; }
   .sheet .note { color: var(--muted); font-size: .85rem; margin: 0 0 14px; }
   .close { margin-left: auto; flex: none; width: 34px; height: 34px; border-radius: 50%; border: 1px solid var(--line); background: var(--panel); color: var(--ink); font-size: 1.05rem; cursor: pointer; }
+  .sheet .head .copy { color: var(--ink); background: transparent; border: 1px solid var(--line); font-weight: 600; font-size: .82rem; }
   [hidden] { display: none !important; }
 </style>
 </head>
@@ -277,26 +279,48 @@
     foot.textContent = `${items.length} ${tab === "packs" ? "pack" : "sticker"}${items.length>1?"s":""} shown`;
   }
 
-  async function openPack(id, packs) {
-    const modal = document.getElementById("modal");
-    const meta = packs.find(p => p.id === id) || {};
+  const modal = document.getElementById("modal");
+  function closeSheet() { modal.hidden = true; modal.innerHTML = ""; }
+  function packLink(id) { return location.origin + location.pathname + "?pack=" + encodeURIComponent(id); }
+
+  async function openPack(id, packs, push) {
+    const meta = (packs || cache.packs || []).find(p => p.id === id) || { id };
+    if (push !== false && new URLSearchParams(location.search).get("pack") !== id) {
+      try { history.pushState({ pack: id }, "", packLink(id)); } catch {}
+    }
     modal.hidden = false;
     modal.innerHTML = `<div class="sheet-bg"><div class="sheet" role="dialog" aria-modal="true" aria-label="${esc(meta.title)}">
-      <div class="head"><div><h2>${esc(meta.title) || "Pack"}</h2></div><button class="close" aria-label="Close">✕</button></div>
+      <div class="head"><div><h2>${esc(meta.title) || "Pack"}</h2></div>
+        <button class="btn ghost copy" style="padding:7px 14px">Copy link</button>
+        <button class="close" aria-label="Close">✕</button></div>
       <p class="note">${meta.sticker_count ?? 0} stickers · open this pack in the StickerDock app to add it to WhatsApp.</p>
       <div id="sheetbody"><div class="spin"></div></div></div></div>`;
     const bg = modal.querySelector(".sheet-bg");
-    const shut = () => { modal.hidden = true; modal.innerHTML = ""; };
+    const shut = () => { if (new URLSearchParams(location.search).get("pack")) { try { history.pushState({}, "", location.pathname); } catch {} } closeSheet(); };
     bg.addEventListener("click", e => { if (e.target === bg) shut(); });
     modal.querySelector(".close").addEventListener("click", shut);
+    const copyBtn = modal.querySelector(".copy");
+    copyBtn.addEventListener("click", async () => {
+      try { await navigator.clipboard.writeText(packLink(id)); copyBtn.textContent = "Copied!"; }
+      catch { copyBtn.textContent = packLink(id); }
+      setTimeout(() => { if (copyBtn.isConnected) copyBtn.textContent = "Copy link"; }, 1800);
+    });
     document.addEventListener("keydown", function esc2(e){ if(e.key==="Escape"){ shut(); document.removeEventListener("keydown", esc2);} });
     try {
       const stickers = await rpc("discover_pack_stickers", { p_pack: id });
-      document.getElementById("sheetbody").innerHTML = `<div class="grid">` + stickers.map(s => `
+      const body = document.getElementById("sheetbody");
+      if (body) body.innerHTML = stickers.length ? `<div class="grid">` + stickers.map(s => `
         <figure class="tile"><div class="thumb"><img loading="lazy" src="${img(s.file_path)}" alt="${esc(s.caption)}"></div>
-        <figcaption class="tmeta"><span class="cap">${esc(s.caption) || "&nbsp;"}</span></figcaption></figure>`).join("") + `</div>`;
-    } catch { document.getElementById("sheetbody").innerHTML = `<p class="note">Couldn't load this pack's stickers.</p>`; }
+        <figcaption class="tmeta"><span class="cap">${esc(s.caption) || "&nbsp;"}</span></figcaption></figure>`).join("") + `</div>`
+        : `<p class="note">This pack has no published stickers yet.</p>`;
+    } catch { const body = document.getElementById("sheetbody"); if (body) body.innerHTML = `<p class="note">Couldn't load this pack's stickers.</p>`; }
   }
+
+  function syncFromUrl() {
+    const id = new URLSearchParams(location.search).get("pack");
+    if (id) openPack(id, cache.packs, false); else closeSheet();
+  }
+  window.addEventListener("popstate", syncFromUrl);
 
   async function load(force) {
     view.innerHTML = `<div class="spin" aria-label="Loading"></div>`;
@@ -317,7 +341,7 @@
   document.getElementById("tab-stickers").addEventListener("click", () => setTab("stickers"));
   document.getElementById("adult").addEventListener("change", e => { adult = e.target.checked; render(); });
   let t; document.getElementById("q").addEventListener("input", e => { clearTimeout(t); t = setTimeout(() => { q = e.target.value.trim().toLowerCase(); render(); }, 160); });
-  load(false);
+  load(false).then(syncFromUrl);  // open a shared ?pack=<id> once the catalog has loaded
 </script>
 </body>
 </html>
