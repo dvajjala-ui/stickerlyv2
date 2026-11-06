@@ -1,0 +1,30 @@
+name: Admin web
+
+# Lints, tests and builds the admin SPA. No Supabase project or secrets needed: tests run on in-memory fixtures and
+# the build bakes in only public values (passed here as empty, so the bundle falls back to demo mode).
+on:
+  workflow_dispatch:
+  push:
+    paths: ['admin/**', '.github/workflows/admin.yml']
+  pull_request:
+    paths: ['admin/**', '.github/workflows/admin.yml']
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: admin
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm ci --no-audit --no-fund
+      - run: npm run lint
+      - run: npm test
+      - run: npm run build
