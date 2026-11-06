@@ -1,0 +1,27 @@
+name: Storefront
+
+# Loads the public storefront in a real headless Chromium and checks it runs with no JS errors and that the
+# catalog UI reacts (packs, NEW badge, 18+ toggle, search, empty state, pack sheet, deep link, copy, tabs).
+# Supabase calls are stubbed inside the test, so no project or secrets are needed.
+on:
+  workflow_dispatch:
+  push:
+    paths: ['site/**', '.github/workflows/site.yml']
+  pull_request:
+    paths: ['site/**', '.github/workflows/site.yml']
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install playwright==1.57.0
+      - run: python -m playwright install --with-deps chromium
+      - run: python site/smoke.py
