@@ -1,201 +1,275 @@
-<meta name="claude:viewport-fit-sides" content="cover">
-<title>StickerDock Discover</title>
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>StickerDock — Hinglish WhatsApp sticker packs</title>
+<meta name="description" content="Fresh Hinglish & Bollywood reaction sticker packs for WhatsApp — reactions, memes, movies, songs and daily moods. Free, updated daily.">
+<meta name="theme-color" content="#15150f">
+<meta property="og:title" content="StickerDock — Hinglish WhatsApp stickers">
+<meta property="og:description" content="Fresh Hinglish & Bollywood reaction sticker packs for WhatsApp. Free, updated daily.">
+<meta property="og:type" content="website">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%2315150f'/%3E%3Crect x='7' y='7' width='8' height='8' rx='2.5' fill='%23c8f135'/%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=Hanken+Grotesk:wght@400;500;600;700&display=swap">
 <style>
-  /* Layout: sticky ink top bar; responsive tile grid of stickers / pack cards; tap a pack opens a sheet. */
+  /* Identity: ink + volt-lime. Layout: hero → sticky search/filter bar → tabbed grid; pack opens a bottom sheet. */
   :root {
-    --bg: #faf7ef;            /* warm paper */
-    --panel: #ffffff;
-    --ink: #15150f;           /* near-black ink */
-    --muted: #6b6a5e;
-    --line: #e7e2d4;
-    --accent: #000000;        /* set below */
-    --volt: #c8f135;          /* volt lime */
-    --volt-ink: #1a1e00;
+    --bg: #faf7ef; --panel: #ffffff; --ink: #15150f; --muted: #6b6a5e; --line: #e7e2d4;
+    --volt: #c8f135; --volt-ink: #1a1e00;
     --shadow: 0 1px 2px rgba(20,20,15,.06), 0 8px 24px rgba(20,20,15,.08);
     --display: "Bricolage Grotesque", "Hanken Grotesk", system-ui, sans-serif;
     --body: "Hanken Grotesk", system-ui, -apple-system, sans-serif;
   }
-  @media (prefers-color-scheme: dark) {
-    :root:not([data-theme="light"]) {
-      --bg: #121109; --panel: #1d1b12; --ink: #f3efe2; --muted: #a09d8c;
-      --line: #322f22; --volt: #c8f135; --volt-ink: #1a1e00;
-      --shadow: 0 1px 2px rgba(0,0,0,.4), 0 10px 30px rgba(0,0,0,.45); color-scheme: dark;
-    }
-  }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+    --bg: #121109; --panel: #1d1b12; --ink: #f3efe2; --muted: #a09d8c; --line: #322f22;
+    --shadow: 0 1px 2px rgba(0,0,0,.4), 0 10px 30px rgba(0,0,0,.45); color-scheme: dark; } }
   :root[data-theme="dark"] {
-    --bg: #121109; --panel: #1d1b12; --ink: #f3efe2; --muted: #a09d8c;
-    --line: #322f22; --volt: #c8f135; --volt-ink: #1a1e00;
-    --shadow: 0 1px 2px rgba(0,0,0,.4), 0 10px 30px rgba(0,0,0,.45); color-scheme: dark;
-  }
+    --bg: #121109; --panel: #1d1b12; --ink: #f3efe2; --muted: #a09d8c; --line: #322f22;
+    --shadow: 0 1px 2px rgba(0,0,0,.4), 0 10px 30px rgba(0,0,0,.45); color-scheme: dark; }
   * { box-sizing: border-box; }
-  body { background: var(--bg); color: var(--ink); font-family: var(--body); line-height: 1.45; }
-  body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 20; background: var(--ink); }
+  html, body { margin: 0; }
+  body { background: var(--bg); color: var(--ink); font-family: var(--body); line-height: 1.45; -webkit-font-smoothing: antialiased; }
+  img { max-width: 100%; }
+  .wrap { max-width: 1120px; margin: 0 auto; padding-left: max(16px, env(safe-area-inset-left,0px)); padding-right: max(16px, env(safe-area-inset-right,0px)); }
 
-  header {
-    position: sticky; top: env(safe-area-inset-top, 0px); z-index: 15; background: var(--ink); color: #f3efe2;
-    padding-block: 12px;
-  }
-  .bar { display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
-    padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
-  .brand { display: flex; align-items: baseline; gap: 8px; font-family: var(--display); font-weight: 800; font-size: 1.4rem; letter-spacing: -.02em; }
-  .brand .dot { width: 10px; height: 10px; border-radius: 3px; background: var(--volt); display: inline-block; transform: translateY(-1px); }
-  .brand small { font-family: var(--body); font-weight: 600; font-size: .62rem; letter-spacing: .14em; text-transform: uppercase; color: var(--volt); }
-  .spacer { flex: 1 1 auto; }
-  .tabs { display: flex; gap: 4px; background: rgba(255,255,255,.08); padding: 3px; border-radius: 999px; }
-  .tabs button { font: inherit; font-weight: 600; font-size: .85rem; color: #d8d4c4; background: none; border: 0; padding: 6px 14px; border-radius: 999px; cursor: pointer; }
-  .tabs button[aria-selected="true"] { background: var(--volt); color: var(--volt-ink); }
-  .adult { display: inline-flex; align-items: center; gap: 7px; font-size: .8rem; font-weight: 600; color: #d8d4c4; cursor: pointer; user-select: none; }
+  /* Hero */
+  .hero { background: var(--ink); color: #f3efe2; padding-block: 30px 26px; }
+  .hero .top { display: flex; align-items: center; gap: 12px; margin-bottom: 26px; }
+  .brand { display: flex; align-items: baseline; gap: 9px; font-family: var(--display); font-weight: 800; font-size: 1.4rem; letter-spacing: -.02em; }
+  .brand .dot { width: 11px; height: 11px; border-radius: 3px; background: var(--volt); transform: translateY(-1px); }
+  .nav { margin-left: auto; display: flex; gap: 18px; align-items: center; font-weight: 600; font-size: .9rem; }
+  .nav a { color: #d8d4c4; text-decoration: none; }
+  .nav a:hover { color: var(--volt); }
+  .headline { font-family: var(--display); font-weight: 800; font-size: clamp(1.9rem, 6vw, 3.4rem); line-height: 1.02; letter-spacing: -.03em; text-wrap: balance; margin: 0 0 12px; max-width: 16ch; }
+  .headline em { color: var(--volt); font-style: normal; }
+  .tagline { color: #cfccbe; font-size: clamp(1rem, 2.5vw, 1.15rem); max-width: 54ch; margin: 0 0 22px; }
+  .cta { display: flex; gap: 10px; flex-wrap: wrap; }
+  .btn { font: inherit; font-weight: 700; cursor: pointer; border: 0; border-radius: 999px; padding: 11px 22px; background: var(--volt); color: var(--volt-ink); text-decoration: none; display: inline-flex; align-items: center; gap: 8px; }
+  .btn.ghost { background: transparent; color: #f3efe2; border: 1px solid rgba(255,255,255,.25); }
+  .btn:hover { filter: brightness(1.05); }
+
+  /* Sticky controls */
+  .controls { position: sticky; top: 0; z-index: 15; background: color-mix(in srgb, var(--bg) 92%, transparent); backdrop-filter: blur(8px); border-bottom: 1px solid var(--line); padding-block: 12px; }
+  .controls .row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+  .search { flex: 1 1 240px; display: flex; align-items: center; gap: 8px; background: var(--panel); border: 1px solid var(--line); border-radius: 999px; padding: 8px 14px; min-width: 0; }
+  .search input { flex: 1; border: 0; background: none; color: inherit; font: inherit; outline: none; min-width: 0; }
+  .search svg { flex: none; opacity: .5; }
+  .tabs { display: flex; gap: 4px; background: var(--line); padding: 3px; border-radius: 999px; }
+  .tabs button { font: inherit; font-weight: 600; font-size: .85rem; color: var(--muted); background: none; border: 0; padding: 7px 15px; border-radius: 999px; cursor: pointer; }
+  .tabs button[aria-selected="true"] { background: var(--ink); color: var(--bg); }
+  .adult { display: inline-flex; align-items: center; gap: 7px; font-size: .82rem; font-weight: 600; cursor: pointer; user-select: none; }
   .adult input { position: absolute; opacity: 0; width: 0; height: 0; }
-  .toggle { width: 38px; height: 22px; border-radius: 999px; background: rgba(255,255,255,.18); position: relative; transition: background .15s; flex: none; }
-  .toggle::after { content: ""; position: absolute; top: 2px; left: 2px; width: 18px; height: 18px; border-radius: 50%; background: #fff; transition: transform .15s; }
+  .toggle { width: 38px; height: 22px; border-radius: 999px; background: var(--line); position: relative; transition: background .15s; flex: none; }
+  .toggle::after { content: ""; position: absolute; top: 2px; left: 2px; width: 18px; height: 18px; border-radius: 50%; background: #fff; box-shadow: 0 1px 2px rgba(0,0,0,.3); transition: transform .15s; }
   .adult input:checked + .toggle { background: var(--volt); }
   .adult input:checked + .toggle::after { transform: translateX(16px); }
-  .adult input:focus-visible + .toggle { outline: 2px solid var(--volt); outline-offset: 2px; }
+  .adult input:focus-visible + .toggle { outline: 2px solid var(--ink); outline-offset: 2px; }
+  .cats { display: flex; gap: 7px; overflow-x: auto; padding-top: 10px; scrollbar-width: none; }
+  .cats::-webkit-scrollbar { display: none; }
+  .cats button { flex: none; font: inherit; font-size: .8rem; font-weight: 600; color: var(--muted); background: var(--panel); border: 1px solid var(--line); border-radius: 999px; padding: 6px 13px; cursor: pointer; }
+  .cats button[aria-pressed="true"] { background: var(--volt); color: var(--volt-ink); border-color: var(--volt); }
 
-  main { max-width: 1120px; margin: 0 auto; padding-block: 22px 60px;
-    padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
-  .lede { font-family: var(--display); font-weight: 600; font-size: clamp(1.5rem, 4vw, 2.3rem); letter-spacing: -.02em; text-wrap: balance; margin: 2px 0 2px; }
-  .sub { color: var(--muted); max-width: 60ch; margin-bottom: 20px; }
-
+  main { padding-block: 22px 56px; }
   .grid { display: grid; gap: 14px; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); }
-  .tile { background: var(--panel); border: 1px solid var(--line); border-radius: 16px; overflow: hidden; box-shadow: var(--shadow); display: flex; flex-direction: column; }
-  .thumb { aspect-ratio: 1; display: grid; place-items: center; background:
-      repeating-conic-gradient(var(--line) 0% 25%, transparent 0% 50%) 50% / 18px 18px; padding: 10px; }
-  .thumb img { max-width: 100%; max-height: 100%; object-fit: contain; filter: drop-shadow(0 4px 10px rgba(0,0,0,.18)); }
-  .tmeta { padding: 9px 11px 11px; display: flex; flex-direction: column; gap: 4px; min-width: 0; }
-  .tmeta .cap { font-weight: 600; font-size: .9rem; line-height: 1.25; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
-  .row { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
-  .chip { font-size: .64rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; padding: 2px 7px; border-radius: 999px; background: var(--line); color: var(--muted); }
+  .packgrid { grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); }
+  .tile { background: var(--panel); border: 1px solid var(--line); border-radius: 16px; overflow: hidden; box-shadow: var(--shadow); display: flex; flex-direction: column; margin: 0; }
+  .thumb { aspect-ratio: 1; display: grid; place-items: center; padding: 10px; background: repeating-conic-gradient(var(--line) 0% 25%, transparent 0% 50%) 50% / 18px 18px; }
+  .thumb img { max-height: 100%; object-fit: contain; filter: drop-shadow(0 4px 10px rgba(0,0,0,.18)); }
+  .tmeta { padding: 9px 11px 11px; display: flex; flex-direction: column; gap: 5px; min-width: 0; }
+  .cap { font-weight: 600; font-size: .9rem; line-height: 1.25; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+  .row2 { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+  .chip { font-size: .64rem; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; padding: 2px 7px; border-radius: 999px; background: var(--line); color: var(--muted); }
   .chip.volt { background: var(--volt); color: var(--volt-ink); }
   .chip.adult { background: #ffe1e1; color: #8a1c1c; }
   @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .chip.adult { background: #3a1414; color: #ffb4b4; } }
   :root[data-theme="dark"] .chip.adult { background: #3a1414; color: #ffb4b4; }
-
-  .pack { cursor: pointer; text-align: left; font: inherit; color: inherit; padding: 0; border: 1px solid var(--line); background: var(--panel); }
+  .pack { cursor: pointer; text-align: left; font: inherit; color: inherit; padding: 0; }
   .pack .cover { aspect-ratio: 16/10; background: var(--line); }
   .pack .cover img { width: 100%; height: 100%; object-fit: cover; }
   .pack .pmeta { padding: 12px 13px 14px; display: flex; flex-direction: column; gap: 6px; }
   .pack h3 { font-family: var(--display); font-weight: 700; font-size: 1.05rem; margin: 0; letter-spacing: -.01em; }
   .pack p { margin: 0; color: var(--muted); font-size: .85rem; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
-  .packgrid { grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); }
 
-  .state { text-align: center; padding: 56px 18px; border: 1px dashed var(--line); border-radius: 18px; background: var(--panel); }
+  .state { text-align: center; padding: 52px 18px; border: 1px dashed var(--line); border-radius: 18px; background: var(--panel); }
   .state h2 { font-family: var(--display); font-weight: 700; font-size: 1.3rem; margin: 0 0 8px; }
-  .state p { color: var(--muted); max-width: 46ch; margin: 0 auto 18px; }
-  .btn { font: inherit; font-weight: 700; cursor: pointer; border: 0; border-radius: 999px; padding: 10px 20px; background: var(--volt); color: var(--volt-ink); }
-  .btn.ghost { background: transparent; color: var(--ink); border: 1px solid var(--line); }
-  .spin { width: 30px; height: 30px; border-radius: 50%; border: 3px solid var(--line); border-top-color: var(--volt); margin: 40px auto; animation: sp 0.8s linear infinite; }
+  .state p { color: var(--muted); max-width: 48ch; margin: 0 auto 18px; }
+  .spin { width: 30px; height: 30px; border-radius: 50%; border: 3px solid var(--line); border-top-color: var(--ink); margin: 44px auto; animation: sp .8s linear infinite; }
   @keyframes sp { to { transform: rotate(360deg); } }
   @media (prefers-reduced-motion: reduce) { .spin { animation: none; } }
 
-  .sheet-bg { position: fixed; inset: 0; background: rgba(10,10,6,.55); display: grid; place-items: end center; z-index: 30; }
-  .sheet { background: var(--bg); width: 100%; max-width: 680px; max-height: 88vh; border-radius: 20px 20px 0 0; overflow: auto; box-shadow: 0 -10px 40px rgba(0,0,0,.3);
-    padding: 20px max(16px, env(safe-area-inset-left,0px)) calc(24px + env(safe-area-inset-bottom,0px)); }
-  .sheet .head { display: flex; align-items: flex-start; gap: 12px; margin-bottom: 14px; }
-  .sheet h2 { font-family: var(--display); font-weight: 800; font-size: 1.4rem; margin: 0; letter-spacing: -.02em; }
-  .close { margin-left: auto; flex: none; width: 34px; height: 34px; border-radius: 50%; border: 1px solid var(--line); background: var(--panel); color: var(--ink); font-size: 1.1rem; cursor: pointer; }
-  footer { text-align: center; color: var(--muted); font-size: .78rem; padding: 10px 16px 30px; }
-  a.link { color: inherit; }
-</style>
+  /* how-to band */
+  .how { background: var(--panel); border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); padding-block: 40px; }
+  .how h2 { font-family: var(--display); font-weight: 800; font-size: clamp(1.4rem,3.5vw,2rem); letter-spacing: -.02em; margin: 0 0 24px; text-wrap: balance; }
+  .steps { display: grid; gap: 18px; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); }
+  .step { display: flex; flex-direction: column; gap: 6px; }
+  .step .n { font-family: var(--display); font-weight: 800; font-size: 1.1rem; width: 34px; height: 34px; border-radius: 10px; display: grid; place-items: center; background: var(--volt); color: var(--volt-ink); }
+  .step h3 { margin: 4px 0 0; font-size: 1.02rem; }
+  .step p { margin: 0; color: var(--muted); font-size: .9rem; }
+  .why { display: grid; gap: 14px; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); margin-top: 20px; }
+  .why .card { background: var(--bg); border: 1px solid var(--line); border-radius: 14px; padding: 16px; }
+  .why h3 { margin: 0 0 5px; font-size: 1rem; }
+  .why p { margin: 0; color: var(--muted); font-size: .88rem; }
 
-<header>
-  <div class="bar">
-    <span class="brand"><span class="dot"></span>StickerDock <small>Discover</small></span>
-    <span class="spacer"></span>
-    <label class="adult" title="Show 18+ humour (no nudity)">
-      <input type="checkbox" id="adult"><span class="toggle"></span>18+
-    </label>
-    <div class="tabs" role="tablist" aria-label="View">
-      <button role="tab" id="tab-packs" aria-selected="true">Packs</button>
-      <button role="tab" id="tab-stickers" aria-selected="false">Stickers</button>
+  footer { padding-block: 30px; color: var(--muted); font-size: .82rem; }
+  footer .wrap { display: flex; gap: 14px; flex-wrap: wrap; align-items: center; justify-content: space-between; }
+  footer a { color: inherit; }
+
+  .sheet-bg { position: fixed; inset: 0; background: rgba(10,10,6,.55); display: grid; place-items: end center; z-index: 30; }
+  .sheet { background: var(--bg); width: 100%; max-width: 680px; max-height: 88vh; border-radius: 20px 20px 0 0; overflow: auto; box-shadow: 0 -10px 40px rgba(0,0,0,.3); padding: 20px max(16px, env(safe-area-inset-left,0px)) calc(24px + env(safe-area-inset-bottom,0px)); }
+  .sheet .head { display: flex; align-items: flex-start; gap: 12px; margin-bottom: 8px; }
+  .sheet h2 { font-family: var(--display); font-weight: 800; font-size: 1.4rem; margin: 0; letter-spacing: -.02em; }
+  .sheet .note { color: var(--muted); font-size: .85rem; margin: 0 0 14px; }
+  .close { margin-left: auto; flex: none; width: 34px; height: 34px; border-radius: 50%; border: 1px solid var(--line); background: var(--panel); color: var(--ink); font-size: 1.05rem; cursor: pointer; }
+  [hidden] { display: none !important; }
+</style>
+</head>
+<body>
+
+<header class="hero">
+  <div class="wrap">
+    <div class="top">
+      <span class="brand"><span class="dot"></span>StickerDock</span>
+      <nav class="nav">
+        <a href="#how">How it works</a>
+        <a href="#why">Why us</a>
+      </nav>
+    </div>
+    <h1 class="headline">Hinglish stickers that <em>actually</em> land.</h1>
+    <p class="tagline">Fresh reaction, meme, Bollywood and daily-mood sticker packs for WhatsApp — made for how India chats. New ones every day.</p>
+    <div class="cta">
+      <a class="btn" href="#catalog">Browse packs</a>
+      <a class="btn ghost" href="#how">Add to WhatsApp</a>
     </div>
   </div>
 </header>
 
-<main>
-  <h1 class="lede" id="lede">Fresh Hinglish stickers for WhatsApp</h1>
-  <p class="sub" id="sub">Reaction memes, Bollywood moments and daily-mood stickers — auto-made and published here. Open a pack to see every sticker, then add it from the StickerDock app.</p>
+<div class="controls" id="catalog">
+  <div class="wrap">
+    <div class="row">
+      <label class="search">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+        <input id="q" type="search" placeholder="Search captions, moods, tags…" autocomplete="off" aria-label="Search stickers">
+      </label>
+      <div class="tabs" role="tablist" aria-label="View">
+        <button role="tab" id="tab-packs" aria-selected="true">Packs</button>
+        <button role="tab" id="tab-stickers" aria-selected="false">Stickers</button>
+      </div>
+      <label class="adult" title="Show 18+ humour (no nudity)"><input type="checkbox" id="adult"><span class="toggle"></span>18+</label>
+    </div>
+    <div class="cats" id="cats" role="group" aria-label="Categories"></div>
+  </div>
+</div>
+
+<main class="wrap">
   <div id="view"><div class="spin" aria-label="Loading"></div></div>
 </main>
 
-<footer id="foot"></footer>
+<section class="how" id="how">
+  <div class="wrap">
+    <h2>Add a pack to WhatsApp in seconds</h2>
+    <div class="steps">
+      <div class="step"><span class="n">1</span><h3>Pick a pack</h3><p>Browse here and find one that fits your mood or group chat.</p></div>
+      <div class="step"><span class="n">2</span><h3>Open in StickerDock</h3><p>Get the StickerDock app, tap the pack, and hit Add to WhatsApp.</p></div>
+      <div class="step"><span class="n">3</span><h3>Send anywhere</h3><p>The pack lands in WhatsApp — personal and Business both — ready to send.</p></div>
+    </div>
+  </div>
+</section>
+
+<section class="how" id="why" style="border-top:0">
+  <div class="wrap">
+    <h2>Why StickerDock</h2>
+    <div class="why">
+      <div class="card"><h3>Made for India</h3><p>Hinglish captions and Bollywood moments, not generic imports. Humour that reads the way you text.</p></div>
+      <div class="card"><h3>Fresh daily</h3><p>New reaction and meme packs land every day, picked for what people are actually sending.</p></div>
+      <div class="card"><h3>Two WhatsApps, one library</h3><p>Personal and Business, or a cloned WhatsApp — add your stickers to all of them from one place.</p></div>
+      <div class="card"><h3>Yours, private</h3><p>Keep a private collection on your phone. A vault for the stuff that stays with you.</p></div>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <span id="foot">StickerDock — fresh WhatsApp stickers for India.</span>
+    <span><a href="#catalog">Catalog</a> · <a href="#how">How it works</a></span>
+  </div>
+</footer>
 
 <div id="modal" hidden></div>
 
 <script>
   const SUPABASE_URL = "https://kyvowdxtwazxhsdjajpm.supabase.co";
   const KEY = "sb_publishable_hibpCfAaAFRgMc24KVWiCg_hpm8Zw1b";
-  const H = { apikey: KEY }; // sb_publishable key goes in the apikey header only (anon role); public is the default schema
+  const H = { apikey: KEY }; // publishable key -> apikey header only (anon role); public is the default schema
   const img = (p) => `${SUPABASE_URL}/storage/v1/object/public/stickers/${p}`;
   const view = document.getElementById("view");
   const foot = document.getElementById("foot");
+  const catsEl = document.getElementById("cats");
   const esc = (s) => (s ?? "").replace(/[&<>"]/g, c => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;" }[c]));
-  let tab = "packs";
-  let adult = false;
+  let tab = "packs", adult = false, cat = "", q = "";
   let cache = { packs: null, stickers: null };
 
   async function api(path) {
     const r = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, { headers: H });
-    if (!r.ok) throw new Error(`${r.status}`);
+    if (!r.ok) throw new Error(r.status);
     return r.json();
   }
   async function rpc(fn, body) {
-    const r = await fetch(`${SUPABASE_URL}/rest/v1/rpc/${fn}`, {
-      method: "POST", headers: { ...H, "Content-Type": "application/json" }, body: JSON.stringify(body) });
-    if (!r.ok) throw new Error(`${r.status}`);
+    const r = await fetch(`${SUPABASE_URL}/rest/v1/rpc/${fn}`, { method: "POST", headers: { ...H, "Content-Type": "application/json" }, body: JSON.stringify(body) });
+    if (!r.ok) throw new Error(r.status);
     return r.json();
   }
-
+  const isAdult = (x) => (x.rating || "").toLowerCase() === "adult";
+  const isGif = (x) => x.animated || (x.kind || "").toLowerCase() === "animated";
   function chips(it) {
     const out = [];
-    if (it.animated || (it.kind || "").toLowerCase() === "animated") out.push('<span class="chip volt">GIF</span>');
-    if ((it.rating || "").toLowerCase() === "adult") out.push('<span class="chip adult">18+</span>');
+    if (isGif(it)) out.push('<span class="chip volt">GIF</span>');
+    if (isAdult(it)) out.push('<span class="chip adult">18+</span>');
     if (it.category) out.push(`<span class="chip">${esc(it.category)}</span>`);
     return out.join(" ");
   }
+  const matchesQ = (s) => !q || [(s.caption||""), (s.tags||[]).join(" "), (s.emojis||[]).join(" "), s.category||"", s.title||"", s.description||""].join(" ").toLowerCase().includes(q);
+  const visible = (list) => list.filter(x => (adult || !isAdult(x)) && (!cat || (x.category||"").toLowerCase() === cat) && matchesQ(x));
 
-  function emptyState() {
-    return `<div class="state">
-      <h2>The catalog is filling up</h2>
-      <p>Stickers are generated from the daily image collection. As soon as the first packs are published, they show up right here — no need to reload.</p>
-      <button class="btn" id="again">Check again</button></div>`;
+  function renderCats(list) {
+    const found = [...new Set(list.map(x => (x.category||"").toLowerCase()).filter(Boolean))].sort();
+    catsEl.innerHTML = [`<button data-c="" aria-pressed="${cat===""}">All</button>`]
+      .concat(found.map(c => `<button data-c="${esc(c)}" aria-pressed="${cat===c}">${esc(c)}</button>`)).join("");
+    catsEl.querySelectorAll("button").forEach(b => b.addEventListener("click", () => { cat = b.dataset.c; render(); }));
+  }
+  function emptyState(filtered) {
+    return `<div class="state"><h2>${filtered ? "Nothing matches that" : "The catalog is filling up"}</h2>
+      <p>${filtered ? "Try a different search, category, or turn on 18+." : "New packs are generated from the daily collection and show up here automatically — no need to reload."}</p>
+      ${filtered ? `<button class="btn" id="clear">Clear filters</button>` : `<button class="btn" id="again">Check again</button>`}</div>`;
   }
   function errorState() {
-    return `<div class="state">
-      <h2>Couldn't reach the catalog</h2>
-      <p>The connection to the StickerDock backend failed. Check back in a moment.</p>
-      <button class="btn ghost" id="again">Retry</button></div>`;
+    return `<div class="state"><h2>Couldn't reach the catalog</h2><p>The connection to StickerDock failed. Try again in a moment.</p><button class="btn" id="again">Retry</button></div>`;
+  }
+  function wire() {
+    const a = document.getElementById("again"); if (a) a.addEventListener("click", () => load(true));
+    const c = document.getElementById("clear"); if (c) c.addEventListener("click", () => { q=""; cat=""; document.getElementById("q").value=""; render(); });
   }
 
-  function renderPacks(list) {
-    const items = list.filter(p => adult || (p.rating || "").toLowerCase() !== "adult");
-    if (!items.length) { view.innerHTML = emptyState(); wireAgain(); return; }
-    view.innerHTML = `<div class="grid packgrid">` + items.map(p => `
-      <button class="tile pack" data-id="${esc(p.id)}">
-        <div class="cover">${p.cover_path ? `<img loading="lazy" src="${img(p.cover_path)}" alt="">` : ""}</div>
-        <div class="pmeta">
-          <div class="row">${chips(p)}<span class="chip">${p.sticker_count ?? 0} stickers</span></div>
-          <h3>${esc(p.title) || "Untitled pack"}</h3>
-          <p>${esc(p.description) || ""}</p>
-        </div>
-      </button>`).join("") + `</div>`;
-    view.querySelectorAll(".pack").forEach(el => el.addEventListener("click", () => openPack(el.dataset.id, list)));
-  }
-
-  function renderStickers(list) {
-    const items = list.filter(s => adult || (s.rating || "").toLowerCase() !== "adult");
-    if (!items.length) { view.innerHTML = emptyState(); wireAgain(); return; }
-    view.innerHTML = `<div class="grid">` + items.map(s => `
-      <figure class="tile">
-        <div class="thumb"><img loading="lazy" src="${img(s.file_path)}" alt="${esc(s.caption) || "sticker"}"></div>
-        <figcaption class="tmeta">
-          <span class="cap">${esc(s.caption) || "&nbsp;"}</span>
-          <div class="row">${chips(s)}</div>
-        </figcaption>
-      </figure>`).join("") + `</div>`;
+  function render() {
+    const src = cache[tab];
+    if (!src) { view.innerHTML = `<div class="spin"></div>`; return; }
+    const items = visible(src);
+    if (!items.length) { view.innerHTML = emptyState(!!(q || cat)); wire(); foot.textContent = "StickerDock — fresh WhatsApp stickers for India."; return; }
+    if (tab === "packs") {
+      view.innerHTML = `<div class="grid packgrid">` + items.map(p => `
+        <button class="tile pack" data-id="${esc(p.id)}">
+          <div class="cover">${p.cover_path ? `<img loading="lazy" src="${img(p.cover_path)}" alt="">` : ""}</div>
+          <div class="pmeta"><div class="row2">${chips(p)}<span class="chip">${p.sticker_count ?? 0} stickers</span></div>
+          <h3>${esc(p.title) || "Untitled pack"}</h3><p>${esc(p.description) || ""}</p></div>
+        </button>`).join("") + `</div>`;
+      view.querySelectorAll(".pack").forEach(el => el.addEventListener("click", () => openPack(el.dataset.id, src)));
+    } else {
+      view.innerHTML = `<div class="grid">` + items.map(s => `
+        <figure class="tile"><div class="thumb"><img loading="lazy" src="${img(s.file_path)}" alt="${esc(s.caption)||"sticker"}"></div>
+        <figcaption class="tmeta"><span class="cap">${esc(s.caption) || "&nbsp;"}</span><div class="row2">${chips(s)}</div></figcaption></figure>`).join("") + `</div>`;
+    }
+    foot.textContent = `${items.length} ${tab === "packs" ? "pack" : "sticker"}${items.length>1?"s":""} shown`;
   }
 
   async function openPack(id, packs) {
@@ -203,53 +277,42 @@
     const meta = packs.find(p => p.id === id) || {};
     modal.hidden = false;
     modal.innerHTML = `<div class="sheet-bg"><div class="sheet" role="dialog" aria-modal="true" aria-label="${esc(meta.title)}">
-      <div class="head"><div><h2>${esc(meta.title) || "Pack"}</h2>
-      <div class="row" style="margin-top:6px">${chips(meta)}<span class="chip">${meta.sticker_count ?? 0} stickers</span></div></div>
-      <button class="close" aria-label="Close">✕</button></div>
+      <div class="head"><div><h2>${esc(meta.title) || "Pack"}</h2></div><button class="close" aria-label="Close">✕</button></div>
+      <p class="note">${meta.sticker_count ?? 0} stickers · open this pack in the StickerDock app to add it to WhatsApp.</p>
       <div id="sheetbody"><div class="spin"></div></div></div></div>`;
     const bg = modal.querySelector(".sheet-bg");
     const shut = () => { modal.hidden = true; modal.innerHTML = ""; };
     bg.addEventListener("click", e => { if (e.target === bg) shut(); });
     modal.querySelector(".close").addEventListener("click", shut);
+    document.addEventListener("keydown", function esc2(e){ if(e.key==="Escape"){ shut(); document.removeEventListener("keydown", esc2);} });
     try {
       const stickers = await rpc("discover_pack_stickers", { p_pack: id });
       document.getElementById("sheetbody").innerHTML = `<div class="grid">` + stickers.map(s => `
         <figure class="tile"><div class="thumb"><img loading="lazy" src="${img(s.file_path)}" alt="${esc(s.caption)}"></div>
         <figcaption class="tmeta"><span class="cap">${esc(s.caption) || "&nbsp;"}</span></figcaption></figure>`).join("") + `</div>`;
-    } catch {
-      document.getElementById("sheetbody").innerHTML = `<p class="sub">Couldn't load this pack's stickers.</p>`;
-    }
+    } catch { document.getElementById("sheetbody").innerHTML = `<p class="note">Couldn't load this pack's stickers.</p>`; }
   }
-
-  function wireAgain() { const b = document.getElementById("again"); if (b) b.addEventListener("click", () => load(true)); }
 
   async function load(force) {
     view.innerHTML = `<div class="spin" aria-label="Loading"></div>`;
     try {
-      if (tab === "packs") {
-        if (force || !cache.packs) cache.packs = await api("discover_packs?select=*&order=updated_at.desc&limit=200");
-        renderPacks(cache.packs);
-        const n = cache.packs.filter(p => adult || (p.rating||"").toLowerCase() !== "adult").length;
-        foot.textContent = n ? `${n} pack${n>1?"s":""} published` : "";
-      } else {
-        if (force || !cache.stickers) cache.stickers = await api("discover_stickers?select=*&order=published_at.desc&limit=300");
-        renderStickers(cache.stickers);
-        const n = cache.stickers.filter(s => adult || (s.rating||"").toLowerCase() !== "adult").length;
-        foot.textContent = n ? `${n} sticker${n>1?"s":""} published` : "";
-      }
-    } catch {
-      view.innerHTML = errorState(); wireAgain(); foot.textContent = "";
-    }
+      if (force || !cache.packs) cache.packs = await api("discover_packs?select=*&order=updated_at.desc&limit=200");
+      if (force || !cache.stickers) cache.stickers = await api("discover_stickers?select=*&order=published_at.desc&limit=400");
+      renderCats(tab === "packs" ? cache.packs : cache.stickers);
+      render();
+    } catch { view.innerHTML = errorState(); wire(); }
   }
-
   function setTab(t) {
-    tab = t;
+    tab = t; cat = "";
     document.getElementById("tab-packs").setAttribute("aria-selected", t === "packs");
     document.getElementById("tab-stickers").setAttribute("aria-selected", t === "stickers");
-    load(false);
+    renderCats(cache[t] || []); render();
   }
   document.getElementById("tab-packs").addEventListener("click", () => setTab("packs"));
   document.getElementById("tab-stickers").addEventListener("click", () => setTab("stickers"));
-  document.getElementById("adult").addEventListener("change", e => { adult = e.target.checked; load(false); });
+  document.getElementById("adult").addEventListener("change", e => { adult = e.target.checked; render(); });
+  let t; document.getElementById("q").addEventListener("input", e => { clearTimeout(t); t = setTimeout(() => { q = e.target.value.trim().toLowerCase(); render(); }, 160); });
   load(false);
 </script>
+</body>
+</html>
