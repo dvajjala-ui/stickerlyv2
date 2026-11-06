@@ -66,6 +66,7 @@ def build_parser() -> argparse.ArgumentParser:
     intake.add_argument("--dry-run", action="store_true")
     pending = sub.add_parser("pending", help="print queue counts (for CI gating)")
     pending.add_argument("--github-output", action="store_true", help="also write work=/media= to $GITHUB_OUTPUT")
+    sub.add_parser("status", help="print a live pipeline snapshot (queue, published content, today's AI spend)")
     migrate = sub.add_parser("migrate", help="apply backend/supabase/migrations to SUPABASE_DB_* (each file once)")
     migrate.add_argument("--dry-run", action="store_true", help="list the files that would be applied")
     return parser
@@ -132,6 +133,28 @@ def cmd_intake(args: argparse.Namespace, env: Env) -> int:
     return 0
 
 
+def status_summary(store: Store, now: Any = None) -> dict[str, Any]:
+    """A plain operator snapshot of the pipeline: queue, published content and today's AI spend."""
+    from .timeutil import ist_day_start, utcnow
+    moment = now or utcnow()
+    packs = store.packs()
+    return {
+        "sources_pending": store.pending_counts(),
+        "stickers_published": len(store.published_stickers(limit=5000)),
+        "packs_total": len(packs),
+        "packs_published": sum(1 for p in packs if p.get("status") == "published"),
+        "ai_today": store.ai_usage_since(ist_day_start(moment)),
+    }
+
+
+def cmd_status(env: Env) -> int:
+    store = _supabase(env)
+    if store is None:
+        return 2
+    _print(status_summary(store))
+    return 0
+
+
 def cmd_pending(args: argparse.Namespace, env: Env) -> int:
     counts = {"new": 0, "screened": 0, "analyzed": 0}
     if env.has_supabase:
@@ -163,6 +186,8 @@ def main(argv: list[str] | None = None) -> int:
             done = apply(dry_run=args.dry_run)
             _print({"applied" if not args.dry_run else "would_apply": done})
             return 0
+        if args.command == "status":
+            return cmd_status(env)
         return cmd_pending(args, env)
     except (StoreError, FileNotFoundError, RuntimeError) as error:
         print(f"error: {error}", file=sys.stderr)
