@@ -1,4 +1,35 @@
-# HandNavigate × StickerDock v2 — plan (paused 2026-11-05)
+# HandNavigate × StickerDock v2 — plan
+
+## Decision on 6 November: share HandNavigate's Supabase project (supersedes the queue design below)
+HandNavigate's new Python agent is already deployed on the owner's Oracle VM. It stores verified Pinterest (and,
+once signed in, Reddit) images in Supabase project `kyvowdxtwazxhsdjajpm`: `collection_topics`, `collection_jobs`,
+`collection_runs`, `collected_images` and the private `handnavigate-images` bucket (149 images on 5 November). So
+StickerDock v2 lives in the **same project**, and the hand-off is a database read:
+
+1. `python -m stickerworker migrate` applies v2's tables. They don't collide with HandNavigate's, and each file
+   is applied once.
+2. The worker's `library` stage copies new `collected_images` into `source_images`, re-hashing each object first.
+   prescreen → analyze → create → compose then make stickers and packs for Discover.
+3. The app's Discover feed reads the same project with its publishable key.
+
+| Done (6 Nov) | Where | Checked |
+| --- | --- | --- |
+| `library` stage, `migrate` command, new `sb_` keys (apikey header only), `.env` loading | stickerlyv2 `main` | worker tests 207/207 |
+| Sticker topics (memes, Indian/Hinglish/reaction/Bollywood memes, funny animals), unverified until earned | handNavigation `main` (`migrations/003`) | agent tests 41/41 (2 skipped) |
+| Largest `srcset` rendition (Pinterest originals/736x instead of 236 px previews) | handNavigation `main` | browser test with fallback |
+| `tools/go-live.ps1`: migrations → one worker run → release APK | stickerlyv2 `main` | parses; needs `.env` |
+
+Waiting on the owner:
+- **`.env` values:** the VM's `windows-agent/.env` lines, the publishable key and the Groq keys.
+- **Earn the new topics on the VM:** `deploy/free-vm/earn-topics.sh`.
+- **Multi-job rotation:** daily jobs for 100 images a day (5 jobs of 20).
+
+The queue design below remains parked on branch `handnavigate-queue`. It is only needed if the two products ever move
+to separate Supabase projects.
+
+---
+
+## Earlier plan (paused 2026-11-05)
 
 **Status: paused on the owner's request.** Nothing here is deployed. The pieces already built are parked on branches
 (see the table) so `main` only holds finished sticker-app work.
