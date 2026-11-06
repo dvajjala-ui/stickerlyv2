@@ -75,8 +75,8 @@ jobs:
         id: config
         working-directory: .
         run: |
-          if [ -z "$SUPABASE_URL" ] || [ -z "$SUPABASE_SERVICE_ROLE_KEY" ]; then
-            echo "::notice title=Sticker worker skipped::SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY secrets are not set; nothing to do."
+          if [ -z "$SUPABASE_URL" ] || { [ -z "$SUPABASE_SERVICE_ROLE_KEY" ] && [ -z "$SUPABASE_SECRET_KEY" ]; }; then
+            echo "::notice title=Sticker worker skipped::SUPABASE_URL / SUPABASE_SECRET_KEY secrets are not set; nothing to do."
             echo "ready=false" >> "$GITHUB_OUTPUT"
           else
             echo "ready=true" >> "$GITHUB_OUTPUT"
