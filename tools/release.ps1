@@ -36,7 +36,7 @@ function Read-Props($path) {
 }
 
 if (-not (Test-Path $jks)) {
-    Write-Host "No signing key yet — creating $jks"
+    Write-Host "No signing key yet - creating $jks"
     $bytes = New-Object byte[] 24
     [Security.Cryptography.RandomNumberGenerator]::Create().GetBytes($bytes)
     $password = [Convert]::ToBase64String($bytes) -replace '[+/=]', 'x'
@@ -44,7 +44,7 @@ if (-not (Test-Path $jks)) {
         -keyalg RSA -keysize 3072 -validity 10000 -storepass $password -keypass $password `
         -dname "CN=StickerDock, O=StickerDock owner" | Out-Null
     if ($LASTEXITCODE -ne 0) { throw "keytool failed" }
-    @("# StickerDock release signing — keep private, back up together with release.jks",
+    @("# StickerDock release signing - keep private, back up together with release.jks",
       "store_password=$password", "key_alias=stickerdock", "key_password=$password") | Set-Content -Encoding ascii $props
     Write-Host "Created. BACK UP $home_ (both files) somewhere safe." -ForegroundColor Yellow
 }
@@ -54,7 +54,11 @@ if (-not $signing['store_password']) { throw "$props is missing store_password" 
 $discover = Read-Props (Join-Path $home_ 'discover.properties')
 if (-not $DiscoverUrl) { $DiscoverUrl = $discover['url'] }
 if (-not $DiscoverAnonKey) { $DiscoverAnonKey = $discover['anon_key'] }
-if (-not $DiscoverUrl) { Write-Host "No Discover project configured — the Discover tab will show its offline state." -ForegroundColor Yellow }
+# Fall back to the repository's .env (shared Supabase project): its URL and the public publishable key.
+$dotenv = Read-Props (Join-Path $repo '.env')
+if (-not $DiscoverUrl) { $DiscoverUrl = $dotenv['SUPABASE_URL'] }
+if (-not $DiscoverAnonKey) { $DiscoverAnonKey = $dotenv['SUPABASE_PUBLISHABLE_KEY'] }
+if (-not $DiscoverUrl) { Write-Host "No Discover project configured - the Discover tab will show its offline state." -ForegroundColor Yellow }
 
 Push-Location $repo
 try { $versionCode = [int](git rev-list --count HEAD) } finally { Pop-Location }

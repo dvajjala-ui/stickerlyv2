@@ -24,4 +24,4 @@ foreach ($u in $clones) {
     & $Adb shell pm install-existing --user $u $Package
     & $Adb shell pm grant --user $u $Package android.permission.INTERACT_ACROSS_USERS
 }
-Write-Host 'Done. Open StickerDock → WhatsApp tab: "WhatsApp · Dual Messenger" should show Ready.'
+Write-Host 'Done. Open StickerDock -> WhatsApp tab: "WhatsApp - Dual Messenger" should show Ready.'
