@@ -72,6 +72,9 @@ class GroqAI:
             # same model usually satisfies. Other invalid responses (truncation, refusal) are not retried here.
             if error.code != "json_validate_failed":
                 raise
+            # The failed strict attempt already consumed its budget units (HTTP 200-style accounting); refund them
+            # so this retry of the *same* image(s) costs one unit, not two, against the daily cap.
+            self.client.budget.refund(kind, units)
             return self.client.chat_json(messages=_inline(messages, schema), schema=None, **common)
 
     def analyze(self, items: Sequence[VisionInput], categories: Sequence[str],

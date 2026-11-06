@@ -292,6 +292,7 @@ def test_vision_json_validate_failed_falls_back_to_json_object():
     analyses = ai.analyze([VisionInput("a", b"\xff\xd8\xffjpeg-a")], CATEGORIES, [])
     assert len(analyses) == 1
     assert [json.loads(r.content)["response_format"]["type"] for r in requests] == ["json_schema", "json_object"]
+    assert client.budget.used["vision"] == 1  # the failed strict attempt was refunded; one image = one unit
 
 
 def test_images_per_request_respects_tpm():
