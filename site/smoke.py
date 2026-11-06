@@ -79,6 +79,13 @@ def main():
         page2 = browser.new_page(); page2.route("**/*", route)
         page2.goto(base + "?pack=p1", wait_until="networkidle"); page2.wait_for_timeout(500)
         if page2.query_selector(".sheet") is None: failures.append("?pack= deep link did not open sheet on load")
+        # 8) Content pages load with no JS errors and a heading, and link back home
+        for name in ("privacy.html", "support.html", "about.html"):
+            pg = browser.new_page(); pg.route("**/*", route)
+            pg.goto(f"http://127.0.0.1:{port}/{name}", wait_until="networkidle"); pg.wait_for_timeout(150)
+            if pg.query_selector("h1") is None: failures.append(f"{name}: no <h1>")
+            if pg.query_selector('a[href="index.html"]') is None: failures.append(f"{name}: no link home")
+            pg.close()
         browser.close()
     httpd.shutdown()
     hard = [e for e in errors if "favicon" not in e.lower()]
