@@ -30,6 +30,11 @@ These are reversible; flip the flags back in the admin or SQL if you disagree.
 5. **Parked the generic queue.** 167 queued generic photos (status new/screened/analyzing) were set to
    `rejected` with `last_error = "parked:generic_topic ..."`, so they stop consuming the 60/day vision budget
    ahead of memes. Nothing was deleted; restore any of them by setting `status` back to `screened`.
+6. **Second daily collection job.** Added `Daily Pinterest memes (2)` (random meme topic, 20 images, 10:45 IST).
+   With the 09:00 job that is 40 images/day across two different meme topics — matching the 60/day vision
+   budget — and it fired the first meme collection the same day. Disable it in `collection_jobs` to go back to one.
+7. **Worker skips switched-off topics.** The `library` stage no longer imports images from topics with
+   `enabled = false`, so pausing a topic in HandNavigate also stops it spending vision budget.
 
 `auto_publish` stays **on**: good, non-celebrity stickers that pass the quality gate publish straight to Discover,
 no manual step — as you asked.
