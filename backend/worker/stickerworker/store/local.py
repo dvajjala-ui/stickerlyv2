@@ -61,6 +61,7 @@ create table if not exists collected_images (id text primary key, source text no
   source_page_url text not null, source_image_url text not null, storage_path text not null unique,
   sha256 text not null unique, mime_type text not null, rights_status text not null default 'reference_only',
   collected_at text not null);
+create table if not exists collection_topics (key text primary key, enabled integer not null default 1);
 create table if not exists worker_runs (id integer primary key autoincrement, started_at text not null,
   finished_at text, stage text not null, ok integer, summary text);
 """
@@ -400,6 +401,15 @@ class LocalStore:
     def handnavigate_images(self, limit: int) -> list[Row]:
         return self._select("collected_images", "select * from collected_images order by collected_at desc limit ?",
                             (limit,))
+
+    def disabled_collection_topics(self) -> set[str]:
+        return {r["key"] for r in self.db.execute("select key from collection_topics where enabled = 0")}
+
+    def set_collection_topic(self, key: str, enabled: bool) -> None:
+        """Test/dev helper: what toggling a topic in HandNavigate does."""
+        with self.db:
+            self.db.execute("insert into collection_topics (key, enabled) values (?, ?) "
+                            "on conflict (key) do update set enabled = excluded.enabled", (key, int(enabled)))
 
     def add_handnavigate_image(self, row: Row, data: bytes) -> None:
         """Test/dev helper: what HandNavigate's import does on the VM (row + object in its bucket)."""

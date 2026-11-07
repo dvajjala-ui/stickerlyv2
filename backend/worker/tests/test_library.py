@@ -60,3 +60,23 @@ def test_a_project_without_handnavigate_tables_is_skipped(ctx, store, monkeypatc
         raise StoreError("GET /rest/v1/collected_images -> HTTP 404 relation does not exist")
     monkeypatch.setattr(store, "handnavigate_images", missing)
     assert library.run(ctx)["skipped"] == "no_handnavigate_library"
+
+
+def test_images_from_a_switched_off_topic_are_not_queued_until_it_is_back_on(ctx, store):
+    meme = add(store, png((250, 200, 10)), topic="memes")
+    generic = add(store, png((10, 120, 250)), topic="travel")
+    store.set_collection_topic("travel", False)
+    first = library.run(ctx)
+    assert first["queued"] == 1 and first["skipped_topic_off"] == 1
+    assert store.existing_sha256([meme, generic]) == {meme}  # nothing downloaded or queued for 'travel'
+    store.set_collection_topic("travel", True)
+    assert library.run(ctx)["queued"] == 1, "switching the topic back on imports its images"
+    assert store.existing_sha256([generic]) == {generic}
+
+
+def test_a_project_without_the_topics_table_filters_nothing(ctx, store, monkeypatch):
+    add(store, png((90, 90, 90)), topic="travel")
+    def missing():
+        raise StoreError("GET /rest/v1/collection_topics -> HTTP 404 relation does not exist")
+    monkeypatch.setattr(store, "disabled_collection_topics", missing)
+    assert library.run(ctx)["queued"] == 1

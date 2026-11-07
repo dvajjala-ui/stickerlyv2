@@ -36,11 +36,20 @@ def run(ctx: Context, limit: int = PER_RUN) -> dict[str, Any]:
     counts: Counter[str] = Counter(seen=len(rows))
     if not rows:
         return dict(counts)
+    try:
+        # A topic switched off in HandNavigate stops feeding the queue (its images aren't downloaded or analysed).
+        # Switching it back on imports them on the next run. Without the topics table, nothing is filtered.
+        disabled = store.disabled_collection_topics()
+    except StoreError:
+        disabled = set()
     existing = store.existing_sha256([r["sha256"] for r in rows])
     for row in rows:
         sha = str(row.get("sha256") or "")
         if sha in existing:
             counts["already_queued"] += 1
+            continue
+        if row.get("topic_key") in disabled:
+            counts["skipped_topic_off"] += 1
             continue
         if ctx.takedowns.match(sha256=sha, url=row.get("source_page_url")):
             counts["skipped_takedown"] += 1

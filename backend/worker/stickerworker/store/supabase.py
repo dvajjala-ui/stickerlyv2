@@ -271,6 +271,10 @@ class SupabaseStore:
             "select": "id,source,topic_key,source_page_url,source_image_url,storage_path,sha256,mime_type,rights_status,"
                       "collected_at", "order": "collected_at.desc"}, cap=limit)
 
+    def disabled_collection_topics(self) -> set[str]:
+        rows = self._select("collection_topics", {"select": "key", "enabled": "is.false"})
+        return {str(r["key"]) for r in rows if r.get("key")}
+
     def upsert_trends(self, rows: Sequence[Row]) -> int:
         if rows:
             self._insert("trends", rows, returning=False, on_conflict="day,title", merge=True)

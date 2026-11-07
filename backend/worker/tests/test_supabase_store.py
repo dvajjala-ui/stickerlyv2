@@ -224,3 +224,10 @@ def test_the_real_migration_folder_is_in_order():
     from stickerworker.migrate import MIGRATIONS, pending
     names = [name for name, _, _ in pending({}, MIGRATIONS)]
     assert names[:3] == ["20261105000001_core.sql", "20261105000002_pack_versions.sql", "20261105000003_quality_gate.sql"]
+
+
+def test_disabled_collection_topics_reads_switched_off_keys():
+    store, seen = make(lambda r: httpx.Response(200, json=[{"key": "travel"}, {"key": "food"}]))
+    assert store.disabled_collection_topics() == {"travel", "food"}
+    assert seen[0].url.path == "/rest/v1/collection_topics"
+    assert seen[0].url.params["enabled"] == "is.false" and seen[0].url.params["select"] == "key"
