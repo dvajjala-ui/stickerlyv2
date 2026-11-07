@@ -26,6 +26,7 @@ jobs:
       VITE_SUPABASE_URL: https://kyvowdxtwazxhsdjajpm.supabase.co
       VITE_SUPABASE_ANON_KEY: sb_publishable_hibpCfAaAFRgMc24KVWiCg_hpm8Zw1b
       VITE_BASE: /stickerlyv2/admin/
+      VITE_OPEN_ADMIN: 'true'   # DEMO: open admin, no login (owner's Plan B choice). Set to '' to require login.
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v4
