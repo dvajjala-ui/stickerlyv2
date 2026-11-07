@@ -17,6 +17,7 @@ Clean rebuild of [StickerDock v1](../sticker). Start with [docs/PRODUCT.md](docs
 
 **Start here (new AI/engineer):** [docs/AI_HANDOFF.md](docs/AI_HANDOFF.md) (lineage, repos, how to run, what's done, pending).
 **Product/UX plan:** [docs/UX_RESEARCH_AND_GAPS.md](docs/UX_RESEARCH_AND_GAPS.md) (competitor research, flow gaps, send-first fix).
+**Research library:** [docs/research/](docs/research/) (architecture & patterns, watermark handling, animated stickers, deduplication).
 **Going live & operating:** [docs/GO_LIVE_STATUS.md](docs/GO_LIVE_STATUS.md) (what's live, owner actions),
 [docs/DEPLOY.md](docs/DEPLOY.md) (Vercel for site + admin), [docs/ORACLE_VM.md](docs/ORACLE_VM.md) (the collector VM).
 **Product & planning:** [docs/PRODUCT_REVIEW.md](docs/PRODUCT_REVIEW.md) (user-centric review + roadmap),
