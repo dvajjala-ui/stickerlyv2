@@ -80,3 +80,14 @@ def test_a_project_without_the_topics_table_filters_nothing(ctx, store, monkeypa
         raise StoreError("GET /rest/v1/collection_topics -> HTTP 404 relation does not exist")
     monkeypatch.setattr(store, "disabled_collection_topics", missing)
     assert library.run(ctx)["queued"] == 1
+
+
+def test_image_url_takedown_is_matched_in_library(ctx, store):
+    from stickerworker.pipeline.fingerprints import TakedownIndex
+    data = png((5, 5, 5))
+    sha = add(store, data, topic="memes")
+    img_url = f"https://i.pinimg.com/736x/{sha[:8]}.png"  # matches add()'s source_image_url
+    ctx._takedowns = TakedownIndex([{"source_url": img_url}])
+    out = library.run(ctx)
+    assert out.get("skipped_takedown") == 1 and out.get("queued", 0) == 0
+    assert store.existing_sha256([sha]) == set()  # never queued

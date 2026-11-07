@@ -51,7 +51,9 @@ def run(ctx: Context, limit: int = PER_RUN) -> dict[str, Any]:
         if row.get("topic_key") in disabled:
             counts["skipped_topic_off"] += 1
             continue
-        if ctx.takedowns.match(sha256=sha, url=row.get("source_page_url")):
+        # Takedowns are indexed by the image URL (source_url); check it and the page URL. sha256/phash still back this up.
+        if (ctx.takedowns.match(sha256=sha, url=row.get("source_image_url"))
+                or ctx.takedowns.match(url=row.get("source_page_url"))):
             counts["skipped_takedown"] += 1
             continue
         try:
