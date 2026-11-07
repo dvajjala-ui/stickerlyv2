@@ -13,6 +13,7 @@ research/architecture-and-patterns → UX_RESEARCH_AND_GAPS → WORK_QUEUE**. Up
 - [UX_RESEARCH_AND_GAPS.md](UX_RESEARCH_AND_GAPS.md) — competitor research, flow gaps, platform-limit vs our-choice, priorities.
 - [flows/send-first-spec.md](flows/send-first-spec.md) — P0 buildable flow (tap = send). [flows/onboarding-spec.md](flows/onboarding-spec.md) — P1 first-run.
 - [GROWTH_AND_MONETIZATION.md](GROWTH_AND_MONETIZATION.md) — positioning, acquisition, retention, clean monetization, milestones.
+- [PLAY_STORE_LAUNCH.md](PLAY_STORE_LAUNCH.md) — launch checklist: tracks, AAB, data-safety/IARC, IP risk, QA blockers.
 
 ## Research library (why/how, with links)
 - [research/README.md](research/README.md) — index + method. [research/watermark-handling.md](research/watermark-handling.md) ·
