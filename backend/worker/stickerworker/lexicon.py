@@ -15,7 +15,8 @@ _EXPLICIT = {
     "tits", "titties", "pussy", "dick", "dicks", "cock", "penis", "vagina", "blowjob", "handjob",
     "cumshot", "orgasm", "masturbate", "masturbation", "rape", "rapist", "chut", "choot", "lund",
     "lauda", "lawda", "lavda", "loda", "chudai", "chod", "chodna", "chodu", "bhosda", "bhosdi",
-    "bhosdike", "bhosadi", "madarchod", "maderchod", "behenchod", "bhenchod", "behanchod",
+    "bhosdike", "bhosadi", "bhosdika", "bhosadike", "madarchod", "maderchod", "madarchood",
+    "behenchod", "bhenchod", "behanchod", "benchod",
 }
 _EXPLICIT_PHRASES = ("blow job", "hand job")
 _EXPLICIT_DEVANAGARI = ("चूत", "लंड", "लौड़ा", "लौडा", "चोद", "भोसड", "नंगी", "बलात्कार")
@@ -30,9 +31,9 @@ _SUGGESTIVE_DEVANAGARI = ("सेक्स", "सुहागरात", "ठर
 
 # Non-sexual profanity: allowed only in the adult lane.
 _PROFANITY = {
-    "bc", "mc", "bsdk", "bkl", "chutiya", "chutiye", "chutiyapa", "gaandu", "gandu", "harami",
-    "haramkhor", "kamina", "kamine", "jhaat", "jhatu", "lodu", "fuck", "fucking", "fck", "wtf",
-    "shit", "bitch", "bastard", "asshole", "motherfucker",
+    "bc", "mc", "bsdk", "bkl", "chutiya", "chutiye", "chutia", "chutya", "chutiyo", "chutiyapa",
+    "gaandu", "gandu", "harami", "haramkhor", "kamina", "kamine", "jhaat", "jhatu", "lodu",
+    "fuck", "fucking", "fck", "wtf", "shit", "bitch", "bastard", "asshole", "motherfucker",
 }
 
 # Slurs against caste, religion, region, gender or ethnicity. Always rejected.

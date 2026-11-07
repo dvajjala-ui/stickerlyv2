@@ -194,6 +194,9 @@ def test_screen_source_is_pure_and_repeatable():
     ("s3xy look", {"suggestive"}),
     ("sexyyyy", {"suggestive"}),
     ("chutiya hai kya", {"profanity"}),
+    ("tum chutia hoti", {"profanity"}),  # the spelling that leaked into a general pack (7 Nov)
+    ("madarchod scene", {"explicit"}),
+    ("behenchod kya bakwas", {"explicit"}),
     ("मादरचोद", {"explicit"}),
     ("cockroach in the kitchen", set()),
     ("kya chhakka mara", set()),
