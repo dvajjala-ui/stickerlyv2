@@ -95,3 +95,15 @@ def test_caption_normalisation_defaults_and_rejects_empty():
     assert c.text == "bas kar bhai" and c.language == "hinglish" and c.style == "reaction" and c.rating == "general"
     adult = normalize_caption({"text": "savage line", "rating": "adult", "style": "savage", "language": "en"})
     assert adult.rating == "adult" and adult.language == "en"
+
+
+def test_stored_adult_category_survives_even_if_disabled():
+    from stickerworker.analysis import analysis_from_row
+    stored = base(category="adult", nsfw="none")  # analysed as adult, no other adult signal
+    # owner later removed 'adult' from the enabled categories
+    enabled = tuple(c for c in CATS if c != "adult")
+    a = analysis_from_row({"analysis": stored}, enabled)
+    assert a.category == "adult", "re-reading must not downgrade a stored adult source to general"
+    # a normal stored category still maps fine
+    b = analysis_from_row({"analysis": base(category="reactions")}, enabled)
+    assert b.category == "reactions"

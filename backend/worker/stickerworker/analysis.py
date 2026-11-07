@@ -192,11 +192,18 @@ def normalize_batch(content: Any, categories: Sequence[str], expected: int) -> l
 
 
 def analysis_from_row(row: Mapping[str, Any], categories: Sequence[str]) -> Analysis:
-    """Re-validate a stored source row's analysis (jsonb column)."""
+    """Re-validate a stored source row's analysis (jsonb column).
+
+    The category the row was analysed under is preserved even if the owner later disabled it, so re-reading a stored
+    row can never downgrade (e.g.) an 'adult' source to 'general' and auto-publish it into a general pack. New
+    generation still chooses only from the enabled categories (that path calls normalize_analysis directly).
+    """
     stored = row.get("analysis")
     if not isinstance(stored, Mapping):
         raise InvalidAnalysis("source has no analysis")
-    return normalize_analysis(stored, categories)
+    raw_cat = str(stored.get("category") or "").strip().lower().replace(" ", "_").replace("-", "_")
+    allowed = tuple(dict.fromkeys([*categories, raw_cat])) if raw_cat else tuple(categories)
+    return normalize_analysis(stored, allowed)
 
 
 def normalize_caption(item: Any, *, origin: str = "ai") -> Caption | None:
