@@ -14,8 +14,8 @@ from typing import Any
 
 from .base import Row, Store
 
-_RECORDED = ("update_source", "insert_source", "update_pack", "add_pack_items", "remove_pack_items",
-             "upsert_trends", "deactivate_trends", "log_ai_call", "finish_run")
+_RECORDED = ("update_source", "insert_source", "reclaim_stale", "update_pack", "add_pack_items",
+             "remove_pack_items", "upsert_trends", "deactivate_trends", "log_ai_call", "finish_run")
 
 
 class DryRunStore:
@@ -35,7 +35,7 @@ class DryRunStore:
     def _recorder(self, name: str) -> Callable[..., Any]:
         def record(*args: Any, **kwargs: Any) -> Any:
             self.planned.append((name, args[0] if len(args) == 1 else args))
-            return 0 if name in ("upsert_trends", "deactivate_trends") else None
+            return 0 if name in ("upsert_trends", "deactivate_trends", "reclaim_stale") else None
         return record
 
     def claim_sources(self, status: str, next_status: str, limit: int, lease_seconds: int,

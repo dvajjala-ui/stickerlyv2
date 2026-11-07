@@ -174,6 +174,7 @@ def test_dry_run_store_sends_only_reads(tmp_path):
     store, seen = make(lambda r: httpx.Response(200, json=[]))
     dry = DryRunStore(store, tmp_path / "preview")
     dry.claim_sources("analyzed", "analyzed", 5, 900)
+    assert dry.reclaim_stale("analyzing", "screened") == 0  # dry run must not PATCH the real store
     dry.update_source("x", {"status": "used"})
     dry.upload("stickers", "s.webp", b"bytes", "image/webp")
     dry.insert_sticker({"file_path": "s.webp"})
