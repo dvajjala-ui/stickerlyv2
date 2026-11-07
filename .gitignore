@@ -46,3 +46,7 @@ backend/worker/*.egg-info/
 
 # Release output (tools/release.ps1)
 dist/
+
+# Coverage artifacts
+.coverage
+htmlcov/
