@@ -1,0 +1,69 @@
+name: Pages (storefront + admin)
+
+# Publishes the public storefront at the site root and the admin panel at /admin/ to GitHub Pages,
+# so there are live URLs without needing Vercel. The build runs on GitHub's runners (Node available there).
+# One-time: repo Settings -> Pages -> Source = "GitHub Actions" (configure-pages tries to enable it too).
+# Only PUBLIC values are used here: the publishable (anon) key and the project URL. The secret key is never used.
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: ['site/**', 'admin/**', '.github/workflows/pages.yml']
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    env:
+      VITE_SUPABASE_URL: https://kyvowdxtwazxhsdjajpm.supabase.co
+      VITE_SUPABASE_ANON_KEY: sb_publishable_hibpCfAaAFRgMc24KVWiCg_hpm8Zw1b
+      VITE_BASE: /stickerlyv2/admin/
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Build admin
+        working-directory: admin
+        run: |
+          npm ci --no-audit --no-fund
+          npm run build
+      - name: Assemble site
+        run: |
+          mkdir -p _site
+          cp -r site/* _site/
+          mkdir -p _site/admin
+          cp -r admin/dist/* _site/admin/
+          # SPA fallback: a deep admin link opened directly or refreshed returns to the admin home
+          # (client-side nav and the magic-link redirect both land on /admin/ which serves index.html).
+          cat > _site/404.html <<'HTML'
+          <!doctype html><meta charset="utf-8"><title>StickerDock</title>
+          <script>
+            var p = location.pathname;
+            if (p.indexOf('/stickerlyv2/admin') === 0) location.replace('/stickerlyv2/admin/' + location.hash);
+            else location.replace('/stickerlyv2/');
+          </script>
+          HTML
+      - uses: actions/configure-pages@v5
+        with:
+          enablement: true
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
