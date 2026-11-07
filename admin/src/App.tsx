@@ -90,5 +90,4 @@ export default function App() {
   if (gate.state === 'not-admin') return <NotAuthorised user={gate.user} error={gate.error} onRetry={() => void check(gate.user, true)} />
 
   return renderApp(gate.user)
-  )
 }
