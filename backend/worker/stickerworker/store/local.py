@@ -422,8 +422,10 @@ class LocalStore:
         for row in rows:
             data = self._encode("trends", {"id": str(uuid.uuid4()), "day": ist_day(self._now()).isoformat(),
                                            "created_at": self._stamp(), "active": True, **row})
+            # `active` is set on insert (default on) but never on conflict, so an owner-disabled trend stays off.
             columns = ", ".join(data)
-            updates = ", ".join(f"{c} = excluded.{c}" for c in data if c not in ("id", "day", "title", "created_at"))
+            updates = ", ".join(f"{c} = excluded.{c}" for c in data
+                                if c not in ("id", "day", "title", "created_at", "active"))
             with self.db:
                 self.db.execute(f"insert into trends ({columns}) values ({', '.join('?' for _ in data)}) "
                                 f"on conflict(day, title) do update set {updates}", tuple(data.values()))

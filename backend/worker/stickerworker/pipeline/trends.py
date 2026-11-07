@@ -167,9 +167,11 @@ def parse_pib(data: bytes, now: datetime, allowed: tuple[str, ...]) -> list[Tren
 
 
 def to_row(item: TrendItem, day: str) -> dict[str, Any]:
+    # No `active` here: the column defaults true on insert, and omitting it from the upsert means a trend the owner
+    # switched off is NOT flipped back on by the next 3-hourly run (the merge only touches columns we send).
     return {"day": day, "title": item.title, "summary": item.summary, "keywords": list(item.keywords),
             "category": item.category, "source": item.source, "source_urls": list(item.source_urls),
-            "score": item.score, "active": True}
+            "score": item.score}
 
 
 def run(ctx: Context, limit: int = 0, *, client: httpx.Client | None = None, offline: bool = False) -> dict[str, Any]:

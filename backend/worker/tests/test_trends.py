@@ -104,3 +104,16 @@ def test_stage_survives_feed_errors(ctx):
 
 def test_offline_mode_never_fetches(ctx):
     assert trends.run(ctx, offline=True)["offline"] is True
+
+
+def test_upsert_does_not_reactivate_an_owner_disabled_trend(store):
+    from stickerworker.pipeline.trends import to_row
+    row = to_row(type("T", (), {"title": "chai meme", "summary": "", "keywords": ["chai"],
+                                "category": "funny", "source": "owner", "source_urls": [], "score": 5.0})(), "2026-11-07")
+    store.upsert_trends([row])
+    # owner switches it off
+    store.db.execute("update trends set active = 0 where title = 'chai meme'")
+    # the next trends run upserts the same (day,title)
+    store.upsert_trends([row])
+    got = store._select("trends", "select active from trends where title = 'chai meme'")
+    assert got and int(got[0]["active"]) == 0, "an owner-disabled trend must stay off after re-upsert"
