@@ -91,7 +91,9 @@ function PackForm({ pack, initialItems, onSaved }: { pack: PackRow | null; initi
   }, [dirty, isNew])
 
   const draftShape = { title: meta.title, kind: meta.kind, rating: meta.rating, cover_sticker_id: meta.cover_sticker_id, stickers: items }
-  const saveIssues = checkPack(draftShape, { forPublish: false, protectedNames: ref.protectedNames })
+  // Saving a published pack must enforce the publish rules (>=3 stickers, no oversize/protected/held), or a save
+  // that drops it below 3 would keep it `published` here while Discover hides it (sticker_count >= 3) — it vanishes.
+  const saveIssues = checkPack(draftShape, { forPublish: pack?.status === 'published', protectedNames: ref.protectedNames })
   const publishIssues = checkPack(draftShape, { forPublish: true, protectedNames: ref.protectedNames })
   const shownIssues = showPublishCheck ? publishIssues : saveIssues
   const flagged = new Set(shownIssues.filter((i) => i.level === 'error').flatMap((i) => i.stickerIds ?? []))
@@ -263,30 +265,36 @@ function PackForm({ pack, initialItems, onSaved }: { pack: PackRow | null; initi
 
           {!readOnly && (
             <div className="editor-actions">
-              <button className="btn btn-primary" disabled={busy || !dirty || hasErrors(saveIssues)} onClick={() => void save()}>
+              <button className="btn btn-primary" disabled={busy || !dirty || !ref.ready || hasErrors(saveIssues)} onClick={() => void save()}>
                 {isNew ? 'Create pack' : 'Save'}
               </button>
               {pack?.status !== 'published' && pack?.status !== 'archived' && (
-                <button className="btn btn-volt" disabled={busy} onClick={() => void publish()}>
+                <button className="btn btn-volt" disabled={busy || !ref.ready} onClick={() => void publish()}>
                   Publish
                 </button>
               )}
               {pack?.status === 'published' && (
-                <button className="btn" disabled={busy} onClick={() => void setStatus('draft', 'Unpublished')}>
+                <button className="btn" disabled={busy || dirty} onClick={() => void setStatus('draft', 'Unpublished')}>
                   Unpublish
                 </button>
               )}
               {pack && pack.status !== 'archived' && (
-                <button className="btn btn-ghost" disabled={busy} onClick={() => void setStatus('archived', 'Archived')}>
+                <button className="btn btn-ghost" disabled={busy || dirty} onClick={() => void setStatus('archived', 'Archived')}>
                   Archive
                 </button>
               )}
               {pack?.status === 'archived' && (
-                <button className="btn" disabled={busy} onClick={() => void setStatus('draft', 'Restored to draft')}>
+                <button className="btn" disabled={busy || dirty} onClick={() => void setStatus('draft', 'Restored to draft')}>
                   Restore to draft
                 </button>
               )}
             </div>
+          )}
+          {!readOnly && !ref.ready && (
+            <p className="muted small">Loading publish rules (protected names, settings)…</p>
+          )}
+          {!readOnly && dirty && pack && (
+            <p className="muted small">Save or discard your changes to unpublish, archive or restore this pack.</p>
           )}
           {pack && (
             <p className="muted small">

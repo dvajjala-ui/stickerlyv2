@@ -154,9 +154,9 @@ function StickerDrawer({ id, onClose, onChanged, onOpenSticker }: { id: string; 
               <>
                 <button
                   className="btn btn-volt"
-                  disabled={busy || errorsOf(issues).length > 0}
+                  disabled={busy || !ref.ready || errorsOf(issues).length > 0}
                   onClick={() => void review('approve')}
-                  title={errorsOf(issues)[0]?.message ?? 'Publish it; the next compose run packs it'}
+                  title={!ref.ready ? 'Loading publish rules…' : errorsOf(issues)[0]?.message ?? 'Publish it; the next compose run packs it'}
                 >
                   Approve
                 </button>
@@ -166,7 +166,7 @@ function StickerDrawer({ id, onClose, onChanged, onOpenSticker }: { id: string; 
               </>
             )}
             {s.status !== 'published' && s.status !== 'held' && (
-              <button className="btn btn-volt" disabled={busy || errorsOf(issues).length > 0} onClick={() => void publish()} title={errorsOf(issues)[0]?.message}>
+              <button className="btn btn-volt" disabled={busy || !ref.ready || errorsOf(issues).length > 0} onClick={() => void publish()} title={!ref.ready ? 'Loading publish rules…' : errorsOf(issues)[0]?.message}>
                 Publish
               </button>
             )}
@@ -578,7 +578,7 @@ export function Stickers() {
             <>
               {tab === 'held' ? (
                 <>
-                  <button className="btn btn-sm btn-volt" disabled={busy} onClick={() => setConfirm({ decision: 'approve', key: selKey })}>
+                  <button className="btn btn-sm btn-volt" disabled={busy || !ref.ready} onClick={() => setConfirm({ decision: 'approve', key: selKey })}>
                     Approve selected
                   </button>
                   <button className="btn btn-sm btn-danger-outline" disabled={busy} onClick={() => setConfirm({ decision: 'reject', key: selKey })}>
@@ -587,7 +587,7 @@ export function Stickers() {
                 </>
               ) : (
                 <>
-                  <button className="btn btn-sm btn-volt" disabled={busy} onClick={() => void publishSelected()}>
+                  <button className="btn btn-sm btn-volt" disabled={busy || !ref.ready} onClick={() => void publishSelected()}>
                     Publish
                   </button>
                   <button className="btn btn-sm" disabled={busy} onClick={() => void setSelected('draft')}>
