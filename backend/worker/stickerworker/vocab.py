@@ -31,3 +31,7 @@ TEXT_PURPOSES = ("caption", "judge", "pack_title", "trend")
 VISION_PURPOSE = "analyze"
 # Optional vision quality judge: one image per call, counted against budgets.vision_per_day.
 QUALITY_PURPOSE = "quality_judge"
+
+# Collection topics whose content defaults to the adult lane (18+). A source whose topic_hint matches keeps its
+# sticker out of the general lane (policy.decide adult_floor). Keys and their " "-spaced topic_hint forms.
+ADULT_TOPIC_HINTS = frozenset({"adult humor", "adult humour", "dirty jokes", "dark memes"})

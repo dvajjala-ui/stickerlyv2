@@ -16,9 +16,9 @@ FLIRTY = Caption("Itna bhi mat dekho", "hinglish", "flirty", "adult")
 SAVAGE = Caption("Aukaat mein reh", "hinglish", "savage", "adult")
 
 
-def verdict(analysis=None, caption=None, *, quality=8, site="reddit", judged=True, **policy_overrides):
+def verdict(analysis=None, caption=None, *, quality=8, site="reddit", judged=True, adult_floor=False, **policy_overrides):
     return decide(analysis or make_analysis(), caption, protected=PROTECTED, policy=policy(**policy_overrides),
-                  quality=quality, site=site, judged=judged)
+                  quality=quality, site=site, judged=judged, adult_floor=adult_floor)
 
 
 # ------------------------------------------------------------------ hard rejects
@@ -206,3 +206,12 @@ def test_screen_source_is_pure_and_repeatable():
 ])
 def test_lexical_flags(text, flags):
     assert set(lexical_flags(text)) == flags
+
+
+def test_adult_floor_keeps_18plus_topic_content_out_of_general():
+    clean = make_analysis(category="funny", nsfw="none")  # model picked a general category
+    assert verdict(clean).rating == "general"                      # no floor -> general
+    assert verdict(clean, adult_floor=True).rating == "adult"      # 18+ topic -> adult lane
+    # a minor is never floored to adult (stays general; other rules handle safety)
+    minor = make_analysis(category="funny", nsfw="none", minors_likely=True)
+    assert verdict(minor, adult_floor=True).rating == "general"

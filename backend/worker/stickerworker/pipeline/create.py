@@ -15,6 +15,7 @@ from typing import Any
 
 from PIL import Image
 
+from .. import vocab
 from ..ai.base import TrendBrief
 from ..analysis import Analysis, Caption, InvalidAnalysis, analysis_from_row
 from ..imaging import clip, compose, cutout, motion
@@ -154,8 +155,9 @@ def publish_draft(ctx: Context, row: Row, analysis: Analysis, draft: Draft, tren
     if ctx.takedowns.match(sha256=sha):
         return "rejected:takedown"
     quality = quality_of(analysis, row)
+    adult_floor = str(row.get("topic_hint") or "").strip().lower() in vocab.ADULT_TOPIC_HINTS
     decision = decide(analysis, draft.caption, protected=ctx.protected, policy=ctx.settings.publish,
-                      quality=quality, site=str(row.get("site") or ""), judged=draft.judged)
+                      quality=quality, site=str(row.get("site") or ""), judged=draft.judged, adult_floor=adult_floor)
     if decision.rejected:
         return "rejected:" + ",".join(decision.reasons)
     caption_text = draft.caption.text if draft.caption else (draft.text[:200] or None)

@@ -189,8 +189,13 @@ def rate(analysis: Analysis, caption: Caption | None) -> str:
 
 
 def decide(analysis: Analysis, caption: Caption | None, *, protected: Sequence[str], policy: PublishPolicy,
-           quality: int, site: str, judged: bool = True) -> Decision:
-    """Final verdict for one sticker variant: status, rating and machine-readable reasons."""
+           quality: int, site: str, judged: bool = True, adult_floor: bool = False) -> Decision:
+    """Final verdict for one sticker variant: status, rating and machine-readable reasons.
+
+    `adult_floor` (set when the source came from an 18+ collection topic) keeps the sticker out of the general lane:
+    its rating floors at `adult`, so adult-humour content can't slip into general packs just because the model picked a
+    non-adult category.
+    """
     source = screen_source(analysis, protected, policy)
     if not source.allowed:
         return Decision("rejected", "general", source.reasons)
@@ -199,6 +204,8 @@ def decide(analysis: Analysis, caption: Caption | None, *, protected: Sequence[s
         if not verdict.allowed:
             return Decision("rejected", "general", verdict.reasons)
     rating = rate(analysis, caption)
+    if adult_floor and rating == "general" and not involves_minor(analysis):
+        rating = "adult"
     if rating == "adult" and involves_minor(analysis):  # belt and braces; screen_* already reject
         return Decision("rejected", "general", ("minor_unsafe",))
     if rating == "adult" and not policy.adult_lane:
