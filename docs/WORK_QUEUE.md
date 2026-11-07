@@ -19,6 +19,18 @@ fails before the fix.
 
 Results land in `docs/REVIEW_2026-11-07.md` (findings, severity, fix commit).
 
+## Product/UX direction (owner review, 7 Nov) — plan before building
+The owner tested the live app and flagged major flow friction. Full research + competitor analysis + prioritized plan:
+**[UX_RESEARCH_AND_GAPS.md](UX_RESEARCH_AND_GAPS.md)**. Headlines (impact order), all app/UX, none security:
+- **P0 send-first flow** — one tap to *send* a single sticker (no pack needed); the keyboard as the hero surface;
+  "Save" as one tap. Collapses today's 7-step Discover→pack→WhatsApp chain. (3-per-pack is WhatsApp's tray rule, not
+  ours — we route around it; a lone sticker can still be *sent*.)
+- **P1 hide all technical fields** (file names, SHAs, status, recipe, slugs) + **first-run onboarding** → "6th-standard" usable.
+- **P2 one-tap add-to-all-WhatsApps** incl. Business/Dual via a guided (non-adb) companion setup.
+- **P3 hard delete** end to end (+ import never revives a hard-deleted sticker).
+- **P4 caption quality + more collection sources** (Reddit/Imgflip/GIF; fix caption fit/typos/watermarks).
+- **P5 recents/favourites + instant forgiving search** in the send surface. **P6 share-a-pack deep link into the app.**
+
 ## Next — product (verifiable here)
 1. **First real meme batch through the pipeline** — judge sticker quality honestly; tune captions/crops if weak.
 2. **Admin "Collect" page** — topics and jobs from the UI. Blocked on a machine with Node (or CI-only iteration).
