@@ -54,7 +54,12 @@ def is_animated_source(row: Row) -> bool:
 
 
 def quality_of(analysis: Analysis, row: Row) -> int:
-    value = 0.7 * analysis.sticker_score + 0.3 * float(row.get("prescreen_score") or 0.0)
+    # Use the RAW prescreen quality, not the meme/text ranking bonus: that bonus only orders the analyze queue
+    # (prescreen.text_bonus), it must not lift a sticker over the publish threshold.
+    prescreen = row.get("prescreen")
+    bonus = float(prescreen.get("text_bonus") or 0.0) if isinstance(prescreen, dict) else 0.0
+    raw = max(0.0, float(row.get("prescreen_score") or 0.0) - bonus)
+    value = 0.7 * analysis.sticker_score + 0.3 * raw
     return max(0, min(10, round(value)))
 
 
