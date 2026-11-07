@@ -70,6 +70,23 @@ def strip_emoji(text: str) -> str:
     return " ".join(EMOJI_RE.sub(" ", text or "").replace("\ufe0f", "").split())
 
 
+# Caption tidy: remove creator handles / URLs that get baked onto memes, and tame extreme stretched vowels
+# ("diyaaa" -> "diyaa") without breaking real doubles ("cool" stays "cool"). Deterministic; applied before burn-in.
+_HANDLE = re.compile(r"(?<!\w)@\w{2,30}")
+_URL = re.compile(r"(?i)\b(?:https?://|www\.)\S+|\b[\w-]+\.(?:com|in|net|org|io|co|app)\b(?:/\S*)?")
+_RUN = re.compile(r"([A-Za-z])\1{2,}")
+
+
+def tidy_caption(text: str) -> str:
+    """Strip @handles and URLs; collapse 3+ repeated letters to 2. Keeps Hinglish/Devanagari otherwise intact."""
+    if not text:
+        return text or ""
+    cleaned = _HANDLE.sub(" ", text)
+    cleaned = _URL.sub(" ", cleaned)
+    cleaned = _RUN.sub(r"\1\1", cleaned)
+    return " ".join(cleaned.split())
+
+
 def clean_tag(value: Any) -> str:
     tag = clean_text(value, 40).lower().lstrip("#")
     tag = strip_emoji(tag)

@@ -12,7 +12,7 @@ from dataclasses import asdict, dataclass
 from typing import Any
 
 from . import vocab
-from .textutil import clean_tag, clean_text, emoji_list, strip_emoji, tokens, unique
+from .textutil import clean_tag, clean_text, emoji_list, strip_emoji, tidy_caption, tokens, unique
 
 _FILLER_STOP = frozenset({"the", "and", "with", "for", "from", "this", "that", "his", "her", "are", "picture",
                           "image", "photo", "showing", "shows"})
@@ -202,7 +202,7 @@ def analysis_from_row(row: Mapping[str, Any], categories: Sequence[str]) -> Anal
 def normalize_caption(item: Any, *, origin: str = "ai") -> Caption | None:
     if not isinstance(item, Mapping):
         return None
-    text = clean_text(strip_emoji(clean_text(item.get("text"), 160)), 90)
+    text = tidy_caption(clean_text(strip_emoji(clean_text(item.get("text"), 160)), 90))
     if not text:
         return None
     return Caption(
