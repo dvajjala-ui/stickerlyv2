@@ -24,6 +24,12 @@ These are reversible; flip the flags back in the admin or SQL if you disagree.
    instead of auto-publishing once Bollywood memes start flowing. This is a legal-safety guardrail I keep even under
    blanket approval.
 3. (Earlier) Applied HandNavigate topic migrations 003 + 004 (28 topics total).
+4. **7 Nov 10:00 IST — stopped generic collection.** The 09:00 run still picked a generic topic (architecture, 20
+   images) because the random rotation included the 6 generic topics. Set `enabled = false` on travel, food,
+   nature, architecture, art and animals, so the daily rotation now only picks from the 11 meme topics.
+5. **Parked the generic queue.** 167 queued generic photos (status new/screened/analyzing) were set to
+   `rejected` with `last_error = "parked:generic_topic ..."`, so they stop consuming the 60/day vision budget
+   ahead of memes. Nothing was deleted; restore any of them by setting `status` back to `screened`.
 
 `auto_publish` stays **on**: good, non-celebrity stickers that pass the quality gate publish straight to Discover,
 no manual step — as you asked.
