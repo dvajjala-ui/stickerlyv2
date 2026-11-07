@@ -57,20 +57,9 @@ export default function App() {
     }
   }, [check])
 
-  if (gate.state === 'loading' || gate.state === 'checking') {
-    return (
-      <div className="splash">
-        <Brand />
-        <Spinner label={gate.state === 'checking' ? 'Checking access…' : undefined} />
-      </div>
-    )
-  }
-  if (gate.state === 'signed-out') return <SignIn />
-  if (gate.state === 'not-admin') return <NotAuthorised user={gate.user} error={gate.error} onRetry={() => void check(gate.user, true)} />
-
-  return (
+  const renderApp = (user: SessionUser) => (
     <Routes>
-      <Route element={<Layout user={gate.user} />}>
+      <Route element={<Layout user={user} />}>
         <Route index element={<Overview />} />
         <Route path="sources" element={<Sources />} />
         <Route path="stickers" element={<Stickers />} />
@@ -82,5 +71,24 @@ export default function App() {
         <Route path="*" element={<Empty title="Page not found">Use the menu to pick a section.</Empty>} />
       </Route>
     </Routes>
+  )
+
+  // DEMO: open admin — skip sign-in when VITE_OPEN_ADMIN=true. The panel then runs on the PUBLIC (publishable) key;
+  // the matching backend grants anon access to the content tables (backend/supabase/demo/open_admin.sql). The SECRET
+  // key is never shipped to the browser. Leave this flag OFF (the default) for any real deployment.
+  if (import.meta.env.VITE_OPEN_ADMIN === 'true') return renderApp({ id: 'open', email: 'open admin (demo)' })
+
+  if (gate.state === 'loading' || gate.state === 'checking') {
+    return (
+      <div className="splash">
+        <Brand />
+        <Spinner label={gate.state === 'checking' ? 'Checking access…' : undefined} />
+      </div>
+    )
+  }
+  if (gate.state === 'signed-out') return <SignIn />
+  if (gate.state === 'not-admin') return <NotAuthorised user={gate.user} error={gate.error} onRetry={() => void check(gate.user, true)} />
+
+  return renderApp(gate.user)
   )
 }
