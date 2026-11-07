@@ -5,6 +5,7 @@ research/architecture-and-patterns → UX_RESEARCH_AND_GAPS → WORK_QUEUE**. Up
 
 ## Start here
 - [AI_HANDOFF.md](AI_HANDOFF.md) — repos, live services, where creds live, how to run, full lineage, pending. **First read.**
+- [SESSION_LOG_2026-11-07.md](SESSION_LOG_2026-11-07.md) — the full 6-7 Nov session: every owner request/instruction, decisions, what shipped, pending, next steps.
 - [SUMMARY.md](SUMMARY.md) — one page: what it is, built, live, deploy status, plan.
 - [research/architecture-and-patterns.md](research/architecture-and-patterns.md) — system model, stack, data flow, why.
 
