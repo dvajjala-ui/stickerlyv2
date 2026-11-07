@@ -20,6 +20,7 @@ from .intake import probe
 
 HAND_BUCKET = "handnavigate-images"
 PER_RUN = 200
+SOURCES_MAX_BYTES = 10 * 1024 * 1024  # the private `sources` bucket rejects larger uploads
 
 
 def topic_hint(row: dict[str, Any]) -> str | None:
@@ -68,6 +69,9 @@ def run(ctx: Context, limit: int = PER_RUN) -> dict[str, Any]:
         if mime not in IMAGE_MIMES:
             counts["skipped_unsupported"] += 1
             continue
+        if len(data) > SOURCES_MAX_BYTES:  # the sources bucket caps uploads; skip before a doomed upload
+            counts["skipped_too_large"] += 1
+            continue
         try:
             info = probe(data, mime)
         except DecodeError:
@@ -78,11 +82,15 @@ def run(ctx: Context, limit: int = PER_RUN) -> dict[str, Any]:
         if ctx.dry_run:
             counts["planned"] += 1
             continue
-        store.upload(SOURCES_BUCKET, storage_path, data, mime)
-        inserted = store.insert_source({
-            "sha256": sha, "storage_path": storage_path, "mime": mime, "bytes": len(data), "site": site,
-            "source_url": row.get("source_image_url"), "page_url": row.get("source_page_url"),
-            "license": row.get("rights_status"), "collector": "handnavigate", "topic_hint": topic_hint(row), **info})
+        try:  # one bad row (upload/insert failure) must not abort the whole import
+            store.upload(SOURCES_BUCKET, storage_path, data, mime)
+            inserted = store.insert_source({
+                "sha256": sha, "storage_path": storage_path, "mime": mime, "bytes": len(data), "site": site,
+                "source_url": row.get("source_image_url"), "page_url": row.get("source_page_url"),
+                "license": row.get("rights_status"), "collector": "handnavigate", "topic_hint": topic_hint(row), **info})
+        except StoreError:
+            counts["skipped_error"] += 1
+            continue
         counts["queued" if inserted else "already_queued"] += 1
         existing.add(sha)
     return dict(counts)
