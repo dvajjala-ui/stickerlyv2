@@ -44,7 +44,8 @@ def analysis_fields(ctx: Context, analysis: Analysis) -> dict[str, Any]:
             "emojis": list(analysis.emojis), "description": analysis.description, "nsfw": analysis.nsfw,
             "minors": analysis.minors_likely, "real_person": analysis.real_person,
             "public_figure": analysis.public_figure or None, "sticker_score": analysis.sticker_score,
-            "analyzed_at": iso(ctx.now()), "status": "analyzed", "locked_until": None, "last_error": None}
+            "analyzed_at": iso(ctx.now()), "status": "analyzed", "locked_until": None, "last_error": None,
+            "attempts": 0}  # success: create gets a fresh attempt budget (P2)
 
 
 def _release(ctx: Context, row: Row) -> None:
@@ -86,6 +87,10 @@ def run(ctx: Context, limit: int) -> dict[str, Any]:
                     ctx.store.update_source(row["id"], {"status": "failed", "locked_until": None,
                                                         "last_error": f"prepare:{error}"})
                     counts["failed"] += 1
+                    continue
+                except Exception as error:  # noqa: BLE001 - a download/store blip retries this row, never aborts the stage (P1)
+                    broken.add(row["id"])
+                    counts[_retry_or_fail(ctx, row, f"prepare:{type(error).__name__}:{error}")] += 1
                     continue
             ready.append(row)
         if not ready:

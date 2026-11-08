@@ -104,7 +104,10 @@ def run(ctx: Context, limit: int) -> dict[str, Any]:
             retry = row.get("attempts", 0) < MAX_ATTEMPTS
             kind = "store" if isinstance(error, StoreError) else type(error).__name__
             fields = {"status": "new" if retry else "failed", "last_error": f"{kind}:{error}"[:300]}
-        ctx.store.update_source(row["id"], {**fields, "locked_until": None})
+        update = {**fields, "locked_until": None}
+        if fields["status"] == "screened":
+            update["attempts"] = 0  # success: the next stage gets a fresh attempt budget, not a shared one (P2)
+        ctx.store.update_source(row["id"], update)
         counts[fields["status"]] += 1
         if fields["status"] == "screened":
             known.insert(0, (f"source:{row['id']}", fields["phash"]))  # catch duplicates within this batch

@@ -72,6 +72,22 @@ def test_screen_boosts_score_when_the_image_has_text(ctx, store, monkeypatch):
     assert screened["prescreen_score"] > raw  # the text bonus lifted it above the raw quality score
 
 
+def test_screen_success_resets_attempts_for_the_next_stage(ctx, store, monkeypatch):
+    # P2: screening successfully hands the next stage a fresh attempt budget, even if this row had retries.
+    import hashlib
+    data = encode(photo(seed=31), "JPEG", quality=90)
+    sha = hashlib.sha256(data).hexdigest()
+    path = f"upload/{sha[:2]}/{sha}.jpg"
+    store.upload("sources", path, data, "image/jpeg")
+    row = store.insert_source({"sha256": sha, "storage_path": path, "mime": "image/jpeg", "bytes": len(data),
+                               "site": "upload", "status": "new", "attempts": 2})
+    monkeypatch.setattr(prescreen.ocr, "read_text", lambda _img: None)  # no tesseract dependency in this test
+    prescreen.run(ctx, 10)
+    screened = store.source(row["id"])
+    assert screened["status"] == "screened"
+    assert screened["attempts"] == 0  # claim bumped 2->3, success reset it to 0
+
+
 def test_intake_dedupes_by_sha_and_blocks_takedowns(store, tmp_path):
     folder = tmp_path / "export"
     (folder / "nested").mkdir(parents=True)

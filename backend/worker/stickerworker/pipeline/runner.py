@@ -7,6 +7,7 @@ from collections.abc import Callable
 from datetime import timedelta
 from typing import Any
 
+from ..store.base import StoreError
 from . import analyze, create, library, packs, prescreen, trends
 from .context import Context
 
@@ -49,6 +50,21 @@ def trends_due(ctx: Context) -> bool:
     return last is None or ctx.now() - last >= TRENDS_EVERY
 
 
+def _safe_start_run(ctx: Context, name: str) -> int | None:
+    # The run ledger is observability, not the pipeline: a StoreError here must not abort the stage (P4).
+    try:
+        return ctx.store.start_run(name)
+    except StoreError:
+        return None
+
+
+def _safe_finish_run(ctx: Context, run_id: int | None, ok: bool, summary: dict[str, Any]) -> None:
+    try:
+        ctx.store.finish_run(run_id, ok, summary)
+    except StoreError:
+        pass  # losing a ledger row is survivable; killing the remaining stages is not
+
+
 def run_stages(ctx: Context, stage: str, limit: int | None = None, *, offline: bool = False,
                local: bool = False) -> tuple[bool, dict[str, Any]]:
     names = STAGES if stage == "all" else (stage,)
@@ -56,10 +72,15 @@ def run_stages(ctx: Context, stage: str, limit: int | None = None, *, offline: b
     results: dict[str, Any] = {}
     all_ok = True
     for name in names:
-        if name == "trends" and stage == "all" and not offline and not trends_due(ctx):
-            results[name] = {"ok": True, "skipped": "fetched_recently"}
-            continue
-        run_id = ctx.store.start_run(name)
+        if name == "trends" and stage == "all" and not offline:
+            try:
+                due = trends_due(ctx)
+            except StoreError:
+                due = True  # can't read the last run; attempt trends anyway (its own try records any failure)
+            if not due:
+                results[name] = {"ok": True, "skipped": "fetched_recently"}
+                continue
+        run_id = _safe_start_run(ctx, name)
         started = time.monotonic()
         try:
             if name == "trends":
@@ -75,7 +96,7 @@ def run_stages(ctx: Context, stage: str, limit: int | None = None, *, offline: b
             traceback.print_exc()
             summary, ok = {"error": f"{type(error).__name__}: {error}"[:500]}, False
         summary["seconds"] = round(time.monotonic() - started, 2)
-        ctx.store.finish_run(run_id, ok, summary)
+        _safe_finish_run(ctx, run_id, ok, summary)
         results[name] = {"ok": ok, **summary}
         all_ok = all_ok and ok
     return all_ok, results

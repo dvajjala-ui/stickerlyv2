@@ -104,8 +104,12 @@ jobs:
         if: steps.config.outputs.ready == 'true'
         run: python -m stickerworker pending --github-output
 
+      # Always install OCR/ffmpeg when the worker runs. The `library` stage imports the day's newly collected
+      # memes (collected_images -> source_images) *inside* "Run stages", i.e. after the `pending` check above.
+      # Gating on queue.media meant a run that started with an empty queue imported memes but had no tesseract
+      # (no OCR/text bonus/Devanagari) and no ffmpeg (motion/clip recipes failed) -> today's memes never published.
       - name: Install OCR, video and Devanagari shaping libraries
-        if: steps.config.outputs.ready == 'true' && steps.queue.outputs.media == 'true'
+        if: steps.config.outputs.ready == 'true'
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y --no-install-recommends \

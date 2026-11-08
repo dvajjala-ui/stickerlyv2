@@ -215,7 +215,7 @@ def process(ctx: Context, row: Row, trends: list[TrendBrief], room: int,
             outcomes[f"why:{result.split(':', 2)[1]}"] += 1
     created = sum(outcomes[status] for status in CREATED)
     if created:
-        return {**done, "status": "used", "last_error": None}, outcomes
+        return {**done, "status": "used", "last_error": None, "attempts": 0}, outcomes
     reasons = sorted(k.removeprefix("why:") for k in outcomes if k.startswith("why:"))
     return {**done, "status": "rejected", "last_error": "no_sticker:" + ",".join(reasons or ["none"])}, outcomes
 
@@ -224,10 +224,23 @@ def run(ctx: Context, limit: int) -> dict[str, Any]:
     room = ctx.settings.budgets.max_new_stickers_per_day - ctx.store.count_stickers_since(ctx.day_start())
     if room <= 0:
         return {"skipped": "daily_sticker_cap"}
+    # Recover rows a crashed create run left leased in 'analyzed' (create claims analyzed->analyzed). Without this
+    # they stay unclaimable until the lease expires and attempts climb across crashes until the row is stuck (P2).
+    reclaimed = ctx.store.reclaim_stale("analyzed", "analyzed") or 0
     rows = ctx.store.claim_sources("analyzed", "analyzed", limit, LEASE_SECONDS)
-    trends = trend_briefs(ctx) if rows else []
-    gate = QualityGate(ctx, known=None if rows else [])
     totals: Counter[str] = Counter(claimed=len(rows))
+    if reclaimed:
+        totals["reclaimed"] = reclaimed
+    if not rows:
+        return dict(totals)
+    try:
+        trends = trend_briefs(ctx)
+        gate = QualityGate(ctx)
+    except Exception:  # noqa: BLE001 - a trends/fingerprint read failure must not strand the rows we just leased (P2)
+        for row in rows:
+            ctx.store.update_source(row["id"], {"locked_until": None,
+                                                "attempts": max(0, int(row.get("attempts", 1)) - 1)})
+        raise
     for row in rows:
         if room <= 0:
             ctx.store.update_source(row["id"], {"locked_until": None,

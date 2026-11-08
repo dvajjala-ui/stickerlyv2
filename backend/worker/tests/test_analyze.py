@@ -102,3 +102,43 @@ def test_budget_gates_the_stage(ctx, store):
     assert analyze.run(ctx, 10) == {"skipped": "vision_budget_exhausted"}
     ctx.ai = None
     assert analyze.run(ctx, 10) == {"skipped": "no_ai_provider"}
+
+
+def _missing_object_source(store, seed: int, score: float) -> str:
+    """A screened source whose storage object does not exist: download() raises StoreError inside prepare()."""
+    sha = hashlib.sha256(f"missing-{seed}".encode()).hexdigest()
+    row = store.insert_source({"sha256": sha, "storage_path": f"upload/{sha[:2]}/{sha}.jpg", "mime": "image/jpeg",
+                               "bytes": 10, "site": "upload", "status": "screened", "prescreen_score": score})
+    return row["id"]
+
+
+def test_download_blip_retries_one_row_without_aborting_the_stage(ctx, store):
+    # P1: a StoreError downloading one source must retry that row, not crash the whole analyze stage.
+    bad = _missing_object_source(store, 50, 9.9)  # highest score -> claimed and prepared first
+    good = [add_source(store, seed, 5.0) for seed in (51, 52)]
+    ctx.ai = StubAI()
+    summary = analyze.run(ctx, 10)
+    assert summary["analyzed"] == 2  # the stage kept going past the broken row
+    assert {store.source(i)["status"] for i in good} == {"analyzed"}
+    row = store.source(bad)
+    assert row["status"] == "screened" and row["locked_until"] is None  # back to the queue for a retry
+    assert row["last_error"].startswith("prepare:") and row["attempts"] == 1
+
+
+def test_repeated_download_failures_eventually_fail_the_row(ctx, store):
+    bad = _missing_object_source(store, 53, 9.9)
+    ctx.ai = StubAI()
+    for _ in range(analyze.MAX_ATTEMPTS):
+        analyze.run(ctx, 10)
+    row = store.source(bad)
+    assert row["status"] == "failed" and row["last_error"].startswith("prepare:")
+
+
+def test_analyze_success_resets_attempts_for_the_create_stage(ctx, store):
+    # P2: a successful analyze hands create a fresh attempt budget instead of carrying retries forward.
+    sid = add_source(store, 54, 5.0)
+    store.update_source(sid, {"attempts": 2})  # simulate earlier retries before this successful run
+    ctx.ai = StubAI()
+    analyze.run(ctx, 10)
+    row = store.source(sid)
+    assert row["status"] == "analyzed" and row["attempts"] == 0 and row["last_error"] is None

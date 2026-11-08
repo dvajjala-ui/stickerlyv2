@@ -6,6 +6,8 @@
 *.jks
 local.properties
 service-account*.json
+# Pasted credential dumps / chat exports contain live keys in plaintext — keep them out of the public repo.
+docs/claude-chat-history.txt
 
 # Build output
 **/build/
