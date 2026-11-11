@@ -135,7 +135,7 @@ fun LibraryScreen(app: AppModel, modifier: Modifier, onOpenPack: (String) -> Uni
                     scope.notify(snackbar, "Deleted ${ids.size} sticker(s)") { library.undoDelete(ids) }
                 }) { Icon(Icons.Filled.Delete, "Delete") }
                 val selected = remember(selection) { selection.mapNotNull(library::sticker) }
-                StickerMoreMenu(app, selected, scope, withFavorite = true, onDone = { selection = emptySet() })
+                StickerMoreMenu(app, selected, scope, withFavorite = true, menuLabel = "More actions", onDone = { selection = emptySet() })
             }
         },
     ) { inner ->
@@ -196,15 +196,19 @@ fun LibraryScreen(app: AppModel, modifier: Modifier, onOpenPack: (String) -> Uni
                     horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
                     items(stickers, key = { it.id }) { item ->
+                        // Send-first: tap = send, ★ = favourite, long-press or ⋯ = details, selection stays for power use.
                         StickerTile(
                             model = app.model(item), description = item.title, selected = item.id in selection,
                             favorite = item.favorite, animated = item.kind == StickerKind.ANIMATED,
-                            onClick = { if (selection.isNotEmpty()) selection = selection.toggle(item.id) else detail = item },
-                            onLongClick = { selection = selection.toggle(item.id) },
+                            sendHint = true, saveActive = item.favorite,
+                            onSave = { SendFirst.toggleFavorite(app, item) },
+                            onMore = { detail = item },
+                            onClick = { if (selection.isNotEmpty()) selection = selection.toggle(item.id) else SendFirst.sendLocal(app, item.id) },
+                            onLongClick = { detail = item },
                         )
                     }
                 }
-                visiblePacks.isEmpty() -> EmptyState("No packs yet", "Select stickers (long-press) and tap Add to pack, or import a pack.")
+                visiblePacks.isEmpty() -> EmptyState("No packs yet", "Open a sticker (long-press) and choose Select multiple, or import a pack.")
                 else -> LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     items(visiblePacks, key = { it.id }) { pack ->
                         val previews = remember(pack.id, pack.dataVersion) { library.packPreview(pack.id) }
@@ -237,7 +241,11 @@ fun LibraryScreen(app: AppModel, modifier: Modifier, onOpenPack: (String) -> Uni
         }
     }
 
-    detail?.let { item -> StickerSheet(app, item, onDismiss = { detail = null }, onAddToPack = { addToPack = listOf(item.id); detail = null }, scope = scope) }
+    detail?.let { item ->
+        StickerSheet(app, item, onDismiss = { detail = null },
+            onAddToPack = { addToPack = listOf(item.id); detail = null },
+            onSelect = { selection = setOf(item.id); detail = null }, scope = scope)
+    }
     addToPack?.let { ids -> AddToPackDialog(app, ids, onDone = { message -> addToPack = null; selection = emptySet(); message?.let { scope.notify(snackbar, it) } }) }
 }
 
@@ -247,7 +255,7 @@ internal fun Modifier.clickableRow(onClick: () -> Unit): Modifier = this.clickab
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun StickerSheet(app: AppModel, item: StickerItem, onDismiss: () -> Unit, onAddToPack: () -> Unit, scope: CoroutineScope) {
+fun StickerSheet(app: AppModel, item: StickerItem, onDismiss: () -> Unit, onAddToPack: () -> Unit, onSelect: (() -> Unit)? = null, scope: CoroutineScope) {
     val library = app.library
     val snackbar = LocalSnackbar.current
     // WhatsApp file names ("STK-2024…-WA0008") aren't names; start the field empty instead.
@@ -267,6 +275,18 @@ fun StickerSheet(app: AppModel, item: StickerItem, onDismiss: () -> Unit, onAddT
             Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
                 StickerTile(app.model(item), item.title, Modifier.size(220.dp), animated = item.kind == StickerKind.ANIMATED, onClick = {})
             }
+            Button(onClick = { SendFirst.sendLocal(app, item.id); onDismiss() }, modifier = Modifier.fillMaxWidth()) { Text("Send") }
+            Row(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
+                var fav by remember(item.id) { mutableStateOf(item.favorite) }
+                IconButton({ fav = !fav; library.setFavorite(item.id, fav) }) {
+                    Icon(if (fav) Icons.Filled.Star else Icons.Outlined.Star, if (fav) "Unfavorite" else "Favorite")
+                }
+                TextButton({
+                    library.deleteStickers(listOf(item.id)); onDismiss()
+                    scope.notify(snackbar, "Sticker deleted") { library.undoDelete(listOf(item.id)) }
+                }) { Text("Delete") }
+                StickerMoreMenu(app, listOf(item), scope, onAddToPack = onAddToPack, onSelect = onSelect, onDone = close)
+            }
             OutlinedTextField(label, { label = it }, Modifier.fillMaxWidth(), label = { Text("Name") }, singleLine = true)
             OutlinedTextField(tags, { tags = it }, Modifier.fillMaxWidth(), label = { Text("Tags (search words, Hinglish ok)") })
             OutlinedTextField(emojis, { emojis = it }, Modifier.fillMaxWidth(), label = { Text("Emojis for WhatsApp search (up to 3)") }, singleLine = true)
@@ -274,24 +294,22 @@ fun StickerSheet(app: AppModel, item: StickerItem, onDismiss: () -> Unit, onAddT
             if (item.rating == Rating.ADULT || item.vault) Text(listOfNotNull("18+".takeIf { item.rating == Rating.ADULT },
                 "In your private vault".takeIf { item.vault }).joinToString(" · "), style = MaterialTheme.typography.labelMedium,
                 color = MaterialTheme.colorScheme.primary)
-            Row(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
-                Button(onClick = onAddToPack) { Text("Add to pack") }
-                IconButton({ library.setFavorite(item.id, !item.favorite); close() }) {
-                    Icon(if (item.favorite) Icons.Filled.Star else Icons.Outlined.Star, if (item.favorite) "Unfavorite" else "Favorite")
-                }
-                TextButton({
-                    library.deleteStickers(listOf(item.id)); onDismiss()
-                    scope.notify(snackbar, "Sticker deleted") { library.undoDelete(listOf(item.id)) }
-                }) { Text("Delete") }
-                StickerMoreMenu(app, listOf(item), scope, onDone = close)
-            }
         }
     }
 }
 
-/** Share, 18+ and vault actions for one or more stickers (sheet and multi-select bar). */
+/** Send, tray, 18+ and vault actions for one or more stickers (sheet and multi-select bar). */
 @Composable
-internal fun StickerMoreMenu(app: AppModel, items: List<StickerItem>, scope: CoroutineScope, withFavorite: Boolean = false, onDone: () -> Unit) {
+internal fun StickerMoreMenu(
+    app: AppModel,
+    items: List<StickerItem>,
+    scope: CoroutineScope,
+    withFavorite: Boolean = false,
+    onAddToPack: (() -> Unit)? = null,
+    onSelect: (() -> Unit)? = null,
+    menuLabel: String = "More",
+    onDone: () -> Unit,
+) {
     val library = app.library
     val snackbar = LocalSnackbar.current
     var open by remember { mutableStateOf(false) }
@@ -300,9 +318,15 @@ internal fun StickerMoreMenu(app: AppModel, items: List<StickerItem>, scope: Cor
     val allAdult = items.all { it.rating == Rating.ADULT }
     val allVault = items.all { it.vault }
     Box {
-        IconButton({ open = true }) { Icon(Icons.Filled.MoreVert, "More") }
+        IconButton({ open = true }) { Icon(Icons.Filled.MoreVert, menuLabel) }
         DropdownMenu(open, { open = false }) {
-            DropdownMenuItem({ Text("Share") }, { open = false; app.host.shareStickers(ids) })
+            DropdownMenuItem({ Text(if (ids.size == 1) "Send" else "Share") }, { open = false; app.host.shareStickers(ids) })
+            if (ids.size == 1) DropdownMenuItem({ Text("Add to WhatsApp tray") }, {
+                open = false; onDone()
+                SendFirst.addToTray(app, ids.first(), scope, snackbar)
+            })
+            if (onAddToPack != null) DropdownMenuItem({ Text("Add to a pack") }, { open = false; onAddToPack() })
+            if (onSelect != null) DropdownMenuItem({ Text("Select multiple") }, { open = false; onSelect() })
             if (withFavorite) {
                 val allFavorite = items.all { it.favorite }
                 DropdownMenuItem({ Text(if (allFavorite) "Remove from favourites" else "Add to favourites") }, {

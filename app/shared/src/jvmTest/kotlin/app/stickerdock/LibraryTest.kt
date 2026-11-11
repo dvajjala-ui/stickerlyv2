@@ -18,6 +18,7 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertIs
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 class LibraryTest {
@@ -283,5 +284,60 @@ class LibraryTest {
         assertEquals(3, lib.purgeDeleted(before = Long.MAX_VALUE))
         assertTrue(files.data.isEmpty())
         assertFalse(lib.isInPack(pack, ids[0]))
+    }
+
+    @Test fun savedPackRollsAtThirtyAndSeparatesLanes() {
+        val ids = (1..31).map { addStatic(it) }
+        val first = lib.savedPack(StickerKind.STATIC, Rating.GENERAL)
+        assertEquals("Saved stickers", lib.pack(first)!!.name)
+        lib.addToPack(first, ids)
+        assertEquals(30, lib.pack(first)!!.count)
+        val second = lib.savedPack(StickerKind.STATIC, Rating.GENERAL)
+        assertTrue(second != first)
+        assertEquals("Saved stickers 2", lib.pack(second)!!.name)
+        lib.addToPack(second, listOf(ids[30]))
+        assertEquals(second, lib.savedPack(StickerKind.STATIC, Rating.GENERAL), "reuse the volume with room left")
+        val adult = lib.savedPack(StickerKind.STATIC, Rating.ADULT)
+        assertEquals(Rating.ADULT, lib.pack(adult)!!.rating)
+        assertTrue(adult != first && adult != second)
+        val animated = lib.savedPack(StickerKind.ANIMATED, Rating.GENERAL)
+        assertEquals(StickerKind.ANIMATED, lib.pack(animated)!!.kind)
+    }
+
+    @Test fun prepareTrayPadsThinPacksFromFavouritesThenRecents() {
+        val fav = addStatic(1)
+        val recent = addStatic(2)
+        val mine = addStatic(3)
+        lib.setFavorite(fav, true)
+        lib.markUsed(recent)
+        val pack = lib.createPack("Tray", StickerKind.STATIC)
+        lib.addToPack(pack, listOf(mine))
+        val prep = lib.prepareTray(pack)!!
+        assertEquals(listOf(fav, recent), prep.padded, "favourites first, then recents")
+        assertEquals(3, lib.pack(pack)!!.count)
+        assertTrue(lib.pack(pack)!!.whatsAppReady)
+        assertEquals(emptyList(), lib.prepareTray(pack)!!.padded, "ready packs are left alone")
+    }
+
+    @Test fun prepareTrayNeverPromotesGeneralOrMixesLanes() {
+        val adult = addStatic(1, rating = Rating.ADULT)
+        val vaulted = addStatic(2, vault = true)
+        val animated = (lib.addSticker(TestWebp.animated(), Origin.IMPORT) as AddResult.Added).id
+        val mine = addStatic(3)
+        val pack = lib.createPack("Tray", StickerKind.STATIC)
+        lib.addToPack(pack, listOf(mine))
+        val prep = lib.prepareTray(pack)!!
+        assertTrue(prep.padded.isEmpty(), "adult, vault and animated stickers are not eligible")
+        assertEquals(1, lib.pack(pack)!!.count)
+        assertEquals(Rating.GENERAL, lib.pack(pack)!!.rating)
+        val adultPack = lib.createPack("Spicy", StickerKind.STATIC, Rating.ADULT)
+        lib.addToPack(adultPack, listOf(adult))
+        assertEquals(listOf(mine), lib.prepareTray(adultPack)!!.padded, "an 18+ pack may take general stickers")
+        val vaultPack = lib.createPack("Private", StickerKind.STATIC, vault = true)
+        lib.addToPack(vaultPack, listOf(vaulted))
+        assertTrue(lib.prepareTray(vaultPack)!!.padded.isEmpty(), "vault packs only pad from the vault")
+        assertNull(lib.prepareTray(lib.createPack("Empty", StickerKind.STATIC)))
+        assertNull(lib.prepareTray("missing"))
+        assertTrue(animated !in prep.padded)
     }
 }

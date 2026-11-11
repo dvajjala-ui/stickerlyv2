@@ -158,7 +158,7 @@ class DiscoverSaver(private val library: Library, private val client: DiscoverCl
             tags = (sticker.tags + listOfNotNull(sticker.category)).joinToString(" "), emojis = sticker.emojis.joinToString(","),
             rating = if (sticker.adult) Rating.ADULT else Rating.GENERAL)
         val id = (result as? AddResult.Added)?.id ?: (result as? AddResult.Duplicate)?.id ?: return result
-        library.addToPack(savedPack(if (sticker.animated) StickerKind.ANIMATED else StickerKind.STATIC,
+        library.addToPack(library.savedPack(if (sticker.animated) StickerKind.ANIMATED else StickerKind.STATIC,
             if (sticker.adult) Rating.ADULT else Rating.GENERAL), listOf(id))
         return result
     }
@@ -209,17 +209,5 @@ class DiscoverSaver(private val library: Library, private val client: DiscoverCl
         library.addToPack(packId, ids)
         library.setRemoteVersion(packId, pack.version)
         return packId
-    }
-
-    /** The rolling "Saved stickers" pack with room left (a new volume starts at 30); 18+ saves get their own. */
-    private fun savedPack(kind: StickerKind, rating: Rating): String {
-        val base = buildString {
-            append(if (kind == StickerKind.ANIMATED) "Saved animated" else "Saved stickers")
-            if (rating == Rating.ADULT) append(" 18+")
-        }
-        val candidates = library.packs(includeAdult = true).filter { it.origin == "SAVED" && it.kind == kind && it.rating == rating }
-        candidates.firstOrNull { it.count < StickerRules.MAX_PACK }?.let { return it.id }
-        val name = if (candidates.isEmpty()) base else "$base ${candidates.size + 1}"
-        return library.createPack(name, kind, rating, origin = "SAVED")
     }
 }

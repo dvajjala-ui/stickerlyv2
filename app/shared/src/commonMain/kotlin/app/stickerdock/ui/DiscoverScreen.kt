@@ -19,17 +19,22 @@ import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -51,7 +56,6 @@ import androidx.compose.ui.unit.dp
 import app.stickerdock.discover.FeedPager
 import app.stickerdock.discover.RemotePack
 import app.stickerdock.discover.RemoteSticker
-import app.stickerdock.library.AddResult
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -83,6 +87,7 @@ fun DiscoverScreen(app: AppModel, modifier: Modifier, onOpenPack: (String) -> Un
     var openSticker by remember { mutableStateOf<RemoteSticker?>(null) }
     var openPack by remember { mutableStateOf<RemotePack?>(null) }
     var askAge by remember { mutableStateOf(false) }
+    var sending by remember { mutableStateOf(false) }
     var refreshKey by remember { mutableStateOf(0) }
     var pulling by remember { mutableStateOf(false) }
     val adult = app.adultEnabled
@@ -154,8 +159,15 @@ fun DiscoverScreen(app: AppModel, modifier: Modifier, onOpenPack: (String) -> Un
             }
         }
         items(feed.items, key = { it.id }) { sticker ->
+            // Send-first: tap = send, ★ = save, long-press = preview.
             StickerTile(client.imageUrl(sticker.filePath), sticker.caption ?: "Sticker", animated = sticker.animated,
-                blurred = sticker.adult && !adult, onClick = { if (sticker.adult && !adult) askAge = true else openSticker = sticker })
+                blurred = sticker.adult && !adult, sendHint = true,
+                onSave = { if (sticker.adult && !adult) askAge = true else SendFirst.saveRemote(app, sticker, scope, snackbar) },
+                onClick = {
+                    if (sticker.adult && !adult) askAge = true
+                    else if (!sending) SendFirst.sendRemote(app, sticker, scope, snackbar) { sending = it }
+                },
+                onLongClick = { if (sticker.adult && !adult) askAge = true else openSticker = sticker })
         }
         if (feed.items.isNotEmpty()) item(span = { GridItemSpan(maxLineSpan) }, key = "feed-footer") {
             Box(Modifier.fillMaxWidth().padding(vertical = 12.dp), contentAlignment = Alignment.Center) {
@@ -172,29 +184,36 @@ fun DiscoverScreen(app: AppModel, modifier: Modifier, onOpenPack: (String) -> Un
 
     openSticker?.let { sticker ->
         ModalBottomSheet(onDismissRequest = { openSticker = null }) {
+            var menu by remember { mutableStateOf(false) }
+            var report by remember { mutableStateOf(false) }
             Column(Modifier.padding(horizontal = 20.dp).padding(bottom = 28.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
                     StickerTile(client.imageUrl(sticker.filePath), sticker.caption ?: "", Modifier.size(220.dp), animated = sticker.animated, onClick = {})
                 }
                 sticker.caption?.let { Text(it, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold) }
-                if (sticker.tags.isNotEmpty()) Text(sticker.tags.joinToString(" · "), style = MaterialTheme.typography.bodySmall)
                 Text(buildString {
                     if (sticker.aiGenerated) append("AI-generated · ")
                     sticker.credit?.get("site")?.let { append("Source: ").append(it.toString().trim('"')) }
                 }, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Button({
-                        openSticker = null
-                        scope.launch {
-                            val result = runCatching { app.saver.saveSticker(sticker) }
-                            scope.notify(snackbar, result.fold({
-                                when (it) { is AddResult.Rejected -> it.reason; is AddResult.Duplicate -> "Already in your library"; else -> "Saved to My stickers" }
-                            }, { "Couldn't save: ${it.message}" }))
+                Button(enabled = !sending, onClick = {
+                    openSticker = null
+                    SendFirst.sendRemote(app, sticker, scope, snackbar) { sending = it }
+                }, modifier = Modifier.fillMaxWidth()) { Text("Send") }
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                    OutlinedButton({ SendFirst.saveRemote(app, sticker, scope, snackbar) }) { Text("Save") }
+                    Box {
+                        IconButton({ menu = true }) { Icon(Icons.Filled.MoreVert, "More") }
+                        DropdownMenu(menu, { menu = false }) {
+                            DropdownMenuItem({ Text("Add to WhatsApp tray") }, {
+                                menu = false; openSticker = null
+                                SendFirst.addRemoteToTray(app, sticker, scope, snackbar)
+                            })
+                            DropdownMenuItem({ Text("Report") }, { menu = false; report = true })
                         }
-                    }) { Text("Save") }
-                    ReportButton(app, "sticker", sticker.id, scope) { openSticker = null }
+                    }
                 }
             }
+            if (report) ReportDialog(app, "sticker", sticker.id, scope, onDone = { openSticker = null }, onDismiss = { report = false })
         }
     }
     openPack?.let { pack ->
@@ -210,6 +229,7 @@ private fun PackPreviewSheet(app: AppModel, pack: RemotePack, onDismiss: () -> U
     val snackbar = LocalSnackbar.current
     var items by remember { mutableStateOf(emptyList<RemoteSticker>()) }
     var saving by remember { mutableStateOf(false) }
+    var sending by remember { mutableStateOf(false) }
     LaunchedEffect(pack.id) { items = runCatching { client.packStickers(pack.id) }.getOrDefault(emptyList()) }
     ModalBottomSheet(onDismissRequest = onDismiss, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)) {
         Column(Modifier.padding(horizontal = 20.dp).padding(bottom = 24.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -220,16 +240,29 @@ private fun PackPreviewSheet(app: AppModel, pack: RemotePack, onDismiss: () -> U
                     saving = true
                     scope.launch {
                         runCatching { app.saver.savePack(pack) }
+                            .onSuccess { localId -> saving = false; onDismiss(); app.host.addToAllWhatsApps(localId) }
+                            .onFailure { scope.notify(snackbar, "Couldn't save the pack: ${it.message}"); saving = false }
+                    }
+                }) { Text(if (saving) "Saving…" else "Add all to WhatsApp") }
+                TextButton(enabled = !saving, onClick = {
+                    saving = true
+                    scope.launch {
+                        runCatching { app.saver.savePack(pack) }
                             .onSuccess(onSaved)
                             .onFailure { scope.notify(snackbar, "Couldn't save the pack: ${it.message}"); saving = false }
                     }
-                }) { Text(if (saving) "Saving…" else "Save & use in WhatsApp") }
+                }) { Text("Save only") }
                 ReportButton(app, "pack", pack.id, scope, onDismiss)
             }
-            Text("Saved packs follow updates: new stickers arrive in WhatsApp automatically.", style = MaterialTheme.typography.bodySmall)
+            Text("Saved packs follow updates: new stickers arrive in WhatsApp automatically. Tap any sticker to send it on its own.",
+                style = MaterialTheme.typography.bodySmall)
             LazyVerticalGrid(GridCells.Adaptive(76.dp), Modifier.fillMaxWidth().heightIn(max = 420.dp),
                 horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                items(items, key = { it.id }) { s -> StickerTile(client.imageUrl(s.filePath), s.caption ?: "", animated = s.animated, onClick = {}) }
+                items(items, key = { it.id }) { s ->
+                    StickerTile(client.imageUrl(s.filePath), s.caption ?: "", animated = s.animated, sendHint = true,
+                        onSave = { SendFirst.saveRemote(app, s, scope, snackbar) },
+                        onClick = { if (!sending) SendFirst.sendRemote(app, s, scope, snackbar) { sending = it } })
+                }
             }
         }
     }
@@ -237,28 +270,31 @@ private fun PackPreviewSheet(app: AppModel, pack: RemotePack, onDismiss: () -> U
 
 @Composable
 private fun ReportButton(app: AppModel, type: String, id: String, scope: CoroutineScope, onDone: () -> Unit) {
-    val snackbar = LocalSnackbar.current
     var open by remember { mutableStateOf(false) }
     TextButton({ open = true }) { Text("Report") }
-    if (open) {
-        val reasons = listOf("copyright" to "It's my content / copyright", "person" to "It shows me or someone without consent",
-            "hate" to "Hateful or abusive", "sexual" to "Sexual or explicit", "minor" to "Involves a child", "other" to "Something else")
-        AlertDialog({ open = false }, title = { Text("Report this $type") },
-            text = {
-                Column {
-                    reasons.forEach { (key, label) ->
-                        TextButton({
-                            open = false; onDone()
-                            scope.launch {
-                                val ok = runCatching { app.discover.report(type, id, key, "") }.isSuccess
-                                scope.notify(snackbar, if (ok) "Thanks — we'll review it quickly" else "Couldn't send the report")
-                            }
-                        }) { Text(label) }
-                    }
+    if (open) ReportDialog(app, type, id, scope, onDone, onDismiss = { open = false })
+}
+
+@Composable
+private fun ReportDialog(app: AppModel, type: String, id: String, scope: CoroutineScope, onDone: () -> Unit, onDismiss: () -> Unit) {
+    val snackbar = LocalSnackbar.current
+    val reasons = listOf("copyright" to "It's my content / copyright", "person" to "It shows me or someone without consent",
+        "hate" to "Hateful or abusive", "sexual" to "Sexual or explicit", "minor" to "Involves a child", "other" to "Something else")
+    AlertDialog(onDismiss, title = { Text("Report this $type") },
+        text = {
+            Column {
+                reasons.forEach { (key, label) ->
+                    TextButton({
+                        onDismiss(); onDone()
+                        scope.launch {
+                            val ok = runCatching { app.discover.report(type, id, key, "") }.isSuccess
+                            scope.notify(snackbar, if (ok) "Thanks — we'll review it quickly" else "Couldn't send the report")
+                        }
+                    }) { Text(label) }
                 }
-            },
-            confirmButton = {}, dismissButton = { TextButton({ open = false }) { Text("Cancel") } })
-    }
+            }
+        },
+        confirmButton = {}, dismissButton = { TextButton(onDismiss) { Text("Cancel") } })
 }
 
 @Composable

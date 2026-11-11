@@ -84,6 +84,8 @@ interface HostActions {
     fun sharePack(packId: String)
     /** Sends sticker files to another app (Telegram, Instagram, a WhatsApp chat…) through the system share sheet. */
     fun shareStickers(stickerIds: List<String>) = showMessage("Sharing single stickers isn't available here yet")
+    /** Send-first: shares one sticker's bytes (a fresh Discover download) with the sticker MIME, no pack needed. */
+    fun shareStickerBytes(bytes: ByteArray) = showMessage("Sending isn't available here yet")
     fun exportBackup()
     fun openKeyboardSettings()
     fun pickKeyboard()

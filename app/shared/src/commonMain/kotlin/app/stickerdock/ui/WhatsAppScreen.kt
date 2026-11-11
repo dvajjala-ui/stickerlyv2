@@ -71,6 +71,21 @@ fun WhatsAppScreen(app: AppModel, modifier: Modifier, onOpenPack: (String) -> Un
                 style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
         item {
+            // The keyboard is the hero: one enable, then every sticker sends from inside any chat.
+            Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)) {
+                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("StickerDock keyboard", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                    Text("Send any sticker from your whole library — in every WhatsApp account, Business, Dual Messenger and other apps. " +
+                        "No packs to add, and it always shows your latest edits.", style = MaterialTheme.typography.bodyMedium)
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        if (!state.keyboardEnabled) Button(host::openKeyboardSettings) { Text("Turn on") }
+                        else OutlinedButton(host::pickKeyboard) { Text(if (state.keyboardSelected) "In use ✓" else "Switch to it") }
+                        TextButton(host::openKeyboardTest) { Text("Try it") }
+                    }
+                }
+            }
+        }
+        item {
             Card(Modifier.fillMaxWidth()) {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     Text("On this phone", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
@@ -85,20 +100,6 @@ fun WhatsAppScreen(app: AppModel, modifier: Modifier, onOpenPack: (String) -> Un
                             }
                             Badge(if (target.ready) "Ready" else "Setup", if (target.ready) Brand.Volt else Brand.Mist, Brand.Ink)
                         }
-                    }
-                }
-            }
-        }
-        item {
-            Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)) {
-                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("StickerDock keyboard", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                    Text("Send any sticker from your whole library — in every WhatsApp account, Business, Dual Messenger and other apps. " +
-                        "No packs to add, and it always shows your latest edits.", style = MaterialTheme.typography.bodyMedium)
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        if (!state.keyboardEnabled) Button(host::openKeyboardSettings) { Text("Turn on") }
-                        else OutlinedButton(host::pickKeyboard) { Text(if (state.keyboardSelected) "In use ✓" else "Switch to it") }
-                        TextButton(host::openKeyboardTest) { Text("Try it") }
                     }
                 }
             }
@@ -176,12 +177,14 @@ private fun PackTargetsRow(app: AppModel, pack: PackInfo, state: WhatsAppState, 
             Column(Modifier.weight(1f).padding(start = 12.dp)) {
                 Text(pack.name, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 Text(when {
-                    !pack.whatsAppReady -> "Hidden from WhatsApp — needs ${StickerRules.MIN_PACK}–${StickerRules.MAX_PACK} stickers (has ${pack.count})"
+                    pack.count == 0 -> "Empty — add stickers to offer it"
+                    pack.count > StickerRules.MAX_PACK -> "Over WhatsApp's 30-sticker limit"
+                    !pack.whatsAppReady -> "We'll fill it with your recent ones when you add it"
                     else -> "${pack.count} stickers" + (if (pack.kind == StickerKind.ANIMATED) " · animated" else "") +
                         (if (pack.rating == Rating.ADULT) " · 18+" else "") + (if (pack.vault) " · vault" else "")
                 }, style = MaterialTheme.typography.bodySmall,
-                    color = if (pack.whatsAppReady) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.error)
-                if (pack.whatsAppReady) Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    color = if (pack.count > StickerRules.MAX_PACK) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant)
+                if (pack.count in 1..StickerRules.MAX_PACK) Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     state.targets.filter { it.ready }.forEach { t ->
                         val shortName = when (t.kind) { TargetKind.WHATSAPP -> "WhatsApp"; TargetKind.BUSINESS -> "Business"; TargetKind.CLONE -> "Dual" }
                         if (t.id in addedTo) Badge("$shortName ✓", Brand.Volt, Brand.Ink)

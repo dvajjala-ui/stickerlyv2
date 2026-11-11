@@ -126,7 +126,9 @@ fun PackScreen(app: AppModel, packId: String, onBack: () -> Unit) {
             items(stickers, key = { it.id }) { item ->
                 StickerTile(app.model(item), item.title, selected = item.id in selection, cover = item.id == current.trayStickerId,
                     favorite = item.favorite, animated = item.kind == StickerKind.ANIMATED,
-                    onClick = { selection = selection.toggle(item.id) }, onLongClick = { selection = selection.toggle(item.id) })
+                    sendHint = true, saveActive = item.favorite, onSave = { SendFirst.toggleFavorite(app, item) },
+                    onClick = { if (selection.isNotEmpty()) selection = selection.toggle(item.id) else SendFirst.sendLocal(app, item.id) },
+                    onLongClick = { selection = selection.toggle(item.id) })
             }
         }
     }
@@ -156,8 +158,8 @@ private fun WhatsAppAddCard(app: AppModel, packId: String, count: Int, ready: Bo
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text("Use in WhatsApp", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
             when {
-                !ready -> Text(if (count < StickerRules.MIN_PACK) "Add ${StickerRules.MIN_PACK - count} more sticker(s) — WhatsApp needs at least 3."
-                    else "WhatsApp allows 30 stickers per pack. Remove ${count - StickerRules.MAX_PACK}.")
+                count == 0 -> Text("Add stickers to this pack first — then one tap puts it in WhatsApp.")
+                count > StickerRules.MAX_PACK -> Text("WhatsApp fits 30 stickers in a pack. Remove ${count - StickerRules.MAX_PACK}, or send them with the StickerDock keyboard.")
                 targets.isEmpty() -> Text("No WhatsApp found on this phone.")
                 else -> targets.forEach { target ->
                     Row(verticalAlignment = Alignment.CenterVertically) {
@@ -174,6 +176,9 @@ private fun WhatsAppAddCard(app: AppModel, packId: String, count: Int, ready: Bo
                     }
                 }
             }
+            if (!ready && count in 1 until StickerRules.MIN_PACK) Text(
+                "Tap Add — we'll top the pack up with your recent stickers so WhatsApp accepts it.",
+                style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             if (ready && overLimit != null) Text(
                 "You already offer $overLimit packs to WhatsApp, the most its guidelines allow per app. This one may not " +
                     "show up — remove one you rarely use in the WhatsApp tab first.",

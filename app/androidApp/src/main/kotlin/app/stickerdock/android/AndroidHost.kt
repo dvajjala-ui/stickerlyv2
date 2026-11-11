@@ -19,6 +19,7 @@ import app.stickerdock.android.dual.Dual
 import app.stickerdock.android.export.Exporters
 import app.stickerdock.android.imports.ImportWorker
 import app.stickerdock.android.keyboard.KeyboardTestActivity
+import app.stickerdock.android.keyboard.StickerMime
 import app.stickerdock.android.whatsapp.WhatsAppDirectory
 import app.stickerdock.android.whatsapp.WhatsAppValidator
 import app.stickerdock.core.StickerRules
@@ -28,11 +29,13 @@ import app.stickerdock.host.ImportProgress
 import app.stickerdock.host.Prefs
 import app.stickerdock.host.TargetKind
 import app.stickerdock.host.WhatsAppState
+import app.stickerdock.ui.SendFirst
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.io.File
 
 class AndroidPrefs(context: Context) : Prefs {
     private val sp = context.getSharedPreferences("settings", Context.MODE_PRIVATE)
@@ -180,8 +183,16 @@ class AndroidHost(private val activity: ComponentActivity, private val graph: Ap
 
     override fun addToWhatsApp(packId: String, targetId: String) {
         val target = _whatsApp.value.targets.firstOrNull { it.id == targetId } ?: return showMessage("WhatsApp not found")
-        val pack = graph.library.pack(packId) ?: return
-        if (!pack.whatsAppReady) return showMessage("WhatsApp needs 3–30 stickers in a pack")
+        var pack = graph.library.pack(packId) ?: return
+        if (!pack.whatsAppReady) {
+            // Send-first: the 3+ rule is handled invisibly — top the tray up from favourites/recents.
+            val prep = graph.library.prepareTray(packId)
+            pack = graph.library.pack(packId) ?: return
+            if (!pack.whatsAppReady) return showMessage(
+                if (pack.count > StickerRules.MAX_PACK) "WhatsApp fits 30 stickers in a pack — remove a few, or send them with the keyboard."
+                else SendFirst.THIN_NOTICE)
+            if (prep != null && prep.padded.isNotEmpty()) showMessage(SendFirst.PADDED_NOTICE)
+        }
         graph.library.setShelf(packId, true)
         val offered = graph.library.shelfPacks().size
         if (offered > StickerRules.SHELF_GUIDELINE) graph.events.record("whatsapp", "offering $offered packs (guideline ${StickerRules.SHELF_GUIDELINE})")
@@ -242,13 +253,24 @@ class AndroidHost(private val activity: ComponentActivity, private val graph: Ap
             graph.files.file(id).takeIf { it.isFile }?.let { FileProvider.getUriForFile(activity, "${activity.packageName}.files", it) }
         }
         if (uris.isEmpty()) return showMessage("Nothing to share")
+        shareUris(uris)
+    }
+
+    override fun shareStickerBytes(bytes: ByteArray) {
+        val file = File(File(activity.cacheDir, "shared").apply { mkdirs() }, "send.webp")
+        runCatching { file.writeBytes(bytes) }.onFailure { return showMessage("Couldn't prepare the sticker") }
+        shareUris(listOf(FileProvider.getUriForFile(activity, "${activity.packageName}.files", file)))
+    }
+
+    /** One sticker goes out with the sticker MIME so WhatsApp receives it as a sticker, not a photo. */
+    private fun shareUris(uris: List<Uri>) {
         val send = if (uris.size == 1) Intent(Intent.ACTION_SEND).putExtra(Intent.EXTRA_STREAM, uris.first())
             else Intent(Intent.ACTION_SEND_MULTIPLE).putParcelableArrayListExtra(Intent.EXTRA_STREAM, ArrayList(uris))
-        send.setType("image/webp").addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        send.setType(if (uris.size == 1) StickerMime.WHATSAPP_STICKER else "image/webp").addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
         // ClipData carries the read grant for every file through the chooser.
         send.clipData = android.content.ClipData.newRawUri(null, uris.first()).apply { uris.drop(1).forEach { addItem(android.content.ClipData.Item(it)) } }
         graph.events.record("share", "sharing ${uris.size} sticker(s)")
-        activity.startActivity(Intent.createChooser(send, if (uris.size == 1) "Share sticker" else "Share ${uris.size} stickers"))
+        activity.startActivity(Intent.createChooser(send, if (uris.size == 1) "Send sticker" else "Share ${uris.size} stickers"))
     }
 
     override fun exportBackup() = backupLauncher.launch("StickerDock-backup.zip")

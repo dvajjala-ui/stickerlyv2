@@ -19,6 +19,7 @@ import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.hasScrollAction
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.onFirst
+import androidx.compose.ui.test.onLast
 import androidx.compose.ui.test.isRoot
 import androidx.compose.ui.test.captureToImage
 import androidx.compose.ui.test.performClick
@@ -91,11 +92,14 @@ class UiSnapshotTest {
         tap("Merge all"); settle(); shot("12-duplicates-merged")
         step { onAllNodes(hasText("Back") or hasContentDescription("Back")).onFirst().performClick() }; settle(1)
         step { onAllNodes(hasText("Back") or hasContentDescription("Back")).onFirst().performClick() }; settle(1)
-        // Long-press a sticker to select it, then open the bulk "More" menu.
+        // Long-press opens the send-first sheet; "Select multiple" starts the bulk selection.
         step { onAllNodes(hasContentDescription("Monday", substring = true) and hasClickAction()).onFirst().performTouchInput { longClick() } }; settle(1)
-        shot("13-selection")
-        step { onAllNodes(hasContentDescription("More") and hasClickAction()).onFirst().performClick() }; settle(1)
-        shot("14-selection-more")
+        shot("13-sticker-sheet")
+        step { onAllNodes(hasContentDescription("More") and hasClickAction()).onLast().performClick() }; settle(1)
+        step { onAllNodes(hasText("Select multiple") and hasClickAction()).onFirst().performClick() }; settle(1)
+        shot("14-selection")
+        step { onAllNodes(hasContentDescription("More actions") and hasClickAction()).onFirst().performClick() }; settle(1)
+        shot("15-selection-more")
     }
 
     /** The sticker keyboard panel at phone width (310 dp tall, as the IME shows it). */

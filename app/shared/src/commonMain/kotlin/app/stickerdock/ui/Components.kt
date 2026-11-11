@@ -3,6 +3,7 @@ package app.stickerdock.ui
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -15,9 +16,15 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.Send
+import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.outlined.Star
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -29,6 +36,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -36,6 +44,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import app.stickerdock.core.Rating
 import app.stickerdock.core.StickerKind
+import app.stickerdock.core.StickerRules
 import app.stickerdock.host.ImportProgress
 import app.stickerdock.library.PackInfo
 import app.stickerdock.library.StickerItem
@@ -55,6 +64,10 @@ fun StickerTile(
     animated: Boolean = false,
     blurred: Boolean = false,
     cover: Boolean = false,
+    sendHint: Boolean = false,
+    onSave: (() -> Unit)? = null,
+    saveActive: Boolean = false,
+    onMore: (() -> Unit)? = null,
     onClick: () -> Unit,
     onLongClick: (() -> Unit)? = null,
 ) {
@@ -75,12 +88,32 @@ fun StickerTile(
         Row(Modifier.align(Alignment.TopEnd).padding(4.dp), horizontalArrangement = Arrangement.spacedBy(3.dp)) {
             if (cover) Badge("Cover", Brand.Volt, Brand.Ink)
             if (animated) Badge("GIF")
-            if (favorite) Badge("★")
+            if (favorite && onSave == null) Badge("★")
+        }
+        if (sendHint || onSave != null || onMore != null) Row(
+            Modifier.align(Alignment.BottomCenter).fillMaxWidth().padding(4.dp),
+            horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Row(horizontalArrangement = Arrangement.spacedBy(3.dp)) {
+                if (sendHint) TileAction("Send", Icons.AutoMirrored.Filled.Send, onClick)
+                if (onMore != null) TileAction("More", Icons.Filled.MoreVert, onMore)
+            }
+            if (onSave != null) TileAction(if (saveActive) "Saved" else "Save",
+                if (saveActive) Icons.Filled.Star else Icons.Outlined.Star, onSave)
         }
         if (selected) Box(Modifier.align(Alignment.TopStart).padding(5.dp).size(20.dp).clip(CircleShape)
             .background(MaterialTheme.colorScheme.primary), contentAlignment = Alignment.Center) {
             Text("✓", color = MaterialTheme.colorScheme.onPrimary, fontSize = 12.sp, fontWeight = FontWeight.Bold)
         }
+    }
+}
+
+/** Small round overlay button on a sticker tile (Send / ★ / ⋯). */
+@Composable
+private fun TileAction(label: String, icon: ImageVector, onClick: () -> Unit) {
+    Box(Modifier.size(26.dp).clip(CircleShape).background(MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.9f))
+        .clickable(onClick = onClick), contentAlignment = Alignment.Center) {
+        Icon(icon, label, Modifier.size(15.dp), tint = MaterialTheme.colorScheme.onSurface)
     }
 }
 
@@ -123,7 +156,7 @@ fun PackCard(
                     }, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
                 if (addedTo.isNotEmpty()) Badge("In ${addedTo.joinToString(" · ")}", Brand.Volt, Brand.Ink)
-                else if (!pack.whatsAppReady) Badge(if (pack.count < 3) "Needs 3+" else "Too many", Brand.Mist, Brand.Ink)
+                else if (pack.count > StickerRules.MAX_PACK) Badge("Over 30", Brand.Mist, Brand.Ink)
             }
         }
     }

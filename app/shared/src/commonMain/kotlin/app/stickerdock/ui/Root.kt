@@ -6,6 +6,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.automirrored.filled.Send
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
@@ -13,8 +14,10 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -57,6 +60,7 @@ class AppModel(val host: HostActions, val library: Library, val discover: Discov
 
     companion object {
         const val KEY_ADULT = "adult_enabled"
+        const val KEY_KEYBOARD_INTRO = "keyboard_intro_shown"
     }
 }
 
@@ -98,6 +102,17 @@ private fun HomeScreen(app: AppModel, onOpenPack: (String) -> Unit, onOpenSettin
     var tab by rememberSaveable { mutableStateOf(HomeTab.LIBRARY) }
     val snackbar = LocalSnackbar.current
     val scope = rememberCoroutineScope()
+    // Send-first onboarding: once, push the keyboard — the only path that sends a single sticker inside a chat.
+    val whatsApp by app.host.whatsApp.collectAsState()
+    var introDismissed by rememberSaveable { mutableStateOf(false) }
+    if (!introDismissed && !whatsApp.loading && !whatsApp.keyboardEnabled && !app.host.prefs.getBoolean(AppModel.KEY_KEYBOARD_INTRO)) {
+        val dismiss = { introDismissed = true; app.host.prefs.putBoolean(AppModel.KEY_KEYBOARD_INTRO, true) }
+        AlertDialog(onDismissRequest = dismiss,
+            title = { Text("Send stickers without leaving your chat") },
+            text = { Text("Turn on the StickerDock keyboard once. Then tap any sticker inside WhatsApp and it sends — no packs, no app switching.") },
+            confirmButton = { TextButton({ dismiss(); app.host.openKeyboardSettings() }) { Text("Turn on keyboard") } },
+            dismissButton = { TextButton(dismiss) { Text("Later") } })
+    }
     Scaffold(
         snackbarHost = { SnackbarHost(snackbar) },
         bottomBar = {

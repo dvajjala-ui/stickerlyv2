@@ -373,6 +373,46 @@ class Library(
 
     fun isInPack(packId: String, stickerId: String) = q.isInPack(packId, stickerId).executeAsOne() > 0
 
+    /**
+     * The rolling pack one-tap Save lands in, and the tray we offer to WhatsApp. A new volume starts at 30;
+     * 18+ and animated saves get their own so a general pack never turns adult by accident.
+     */
+    fun savedPack(kind: StickerKind, rating: Rating, vault: Boolean = false): String {
+        val base = buildString {
+            append(if (kind == StickerKind.ANIMATED) "Saved animated" else "Saved stickers")
+            if (rating == Rating.ADULT) append(" 18+")
+        }
+        val candidates = packs(includeAdult = true, vault = vault)
+            .filter { it.origin == "SAVED" && it.kind == kind && it.rating == rating && it.vault == vault }
+        candidates.firstOrNull { it.count < StickerRules.MAX_PACK }?.let { return it.id }
+        val name = if (candidates.isEmpty()) base else "$base ${candidates.size + 1}"
+        return createPack(name, kind, rating, vault, origin = "SAVED")
+    }
+
+    /** What [prepareTray] added on top of the pack's own stickers. */
+    data class TrayPrep(val packId: String, val padded: List<String>)
+
+    /**
+     * Makes a thin pack (1–2 stickers) WhatsApp-ready by topping it up from favourites, then recents —
+     * same kind and vault, and a general pack never receives 18+ stickers. Already-ready packs return an
+     * empty [TrayPrep.padded]; empty or over-full packs return null (nothing sensible to pad).
+     */
+    fun prepareTray(packId: String): TrayPrep? {
+        val pack = q.packById(packId).executeAsOneOrNull() ?: return null
+        val count = countOf(packId)
+        if (count <= 0 || count > StickerRules.MAX_PACK) return null
+        if (count >= StickerRules.MIN_PACK) return TrayPrep(packId, emptyList())
+        val inPack = q.packStickers(packId).executeAsList().map { it.id }.toSet()
+        val general = pack.rating == Rating.GENERAL.name
+        val pool = (q.browseStickers(pack.kind, 1L, 1L, pack.vault, StickerSort.NEWEST.name, 100L, 0L).executeAsList() +
+            q.browseStickers(pack.kind, 0L, 1L, pack.vault, StickerSort.NEWEST.name, 200L, 0L).executeAsList())
+            .distinctBy { it.id }
+            .filter { it.id !in inPack && (!general || it.rating == Rating.GENERAL.name) }
+            .take(StickerRules.MIN_PACK - count)
+        val added = addToPack(packId, pool.map { it.id }).added
+        return TrayPrep(packId, added)
+    }
+
     fun addToPack(packId: String, stickerIds: List<String>): PackAddResult {
         val pack = q.packById(packId).executeAsOneOrNull() ?: return PackAddResult(emptyList(), stickerIds.associateWith { "Pack not found" })
         val added = mutableListOf<String>()
