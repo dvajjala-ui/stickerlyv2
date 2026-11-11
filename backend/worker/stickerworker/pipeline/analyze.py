@@ -28,6 +28,10 @@ def hints(row: Row) -> tuple[str, ...]:
     return tuple(dict.fromkeys(words))[:12]
 
 
+def is_animated_source(row: Row) -> bool:
+    return row.get("mime") in VIDEO_MIMES or int(row.get("frames") or 1) > 1
+
+
 def prepare(ctx: Context, row: Row) -> VisionInput:
     data = ctx.store.download(SOURCES_BUCKET, row["storage_path"])
     mime = sniff_mime(data) or row.get("mime", "")
@@ -78,6 +82,13 @@ def run(ctx: Context, limit: int) -> dict[str, Any]:
         ready: list[Row] = []
         for row in batch:
             if row["id"] in broken:
+                continue
+            if not ctx.settings.recipes.clip and is_animated_source(row):
+                # Animated recipes are paused (owner 2026-11-11): don't spend vision budget on GIFs/video.
+                # Revive with: update source_images set status='analyzed' where last_error='animated_paused'.
+                ctx.store.update_source(row["id"], {"status": "rejected", "locked_until": None,
+                                                    "last_error": "animated_paused"})
+                counts["animated_paused"] += 1
                 continue
             if row["id"] not in prepared:
                 try:

@@ -127,3 +127,17 @@ test('pack counts and versions only count published stickers', async () => {
   const inPack = await asAnon(db, 'select id from public.discover_pack_stickers($1)', [pack.id])
   assert.equal(inPack.length, 2)
 })
+
+test('pack stickers never leak a different rating (W2 guard)', async () => {
+  const db = await project()
+  const { rows } = await db.query(
+    `insert into public.packs (title, kind, status, rating) values ('Office Ke Dukh', 'static', 'published', 'general') returning id`)
+  const pack = rows[0]
+  const general = await addSticker(db, 'published')
+  const adult = await addSticker(db, 'published', { rating: 'adult' })
+  for (const [i, id] of [general, adult].entries()) {
+    await db.query('insert into public.pack_items (pack_id, sticker_id, position) values ($1, $2, $3)', [pack.id, id, i])
+  }
+  const inPack = await asAnon(db, 'select id from public.discover_pack_stickers($1)', [pack.id])
+  assert.deepEqual(inPack.map((r) => r.id), [general], 'adult sticker must not be served through a general pack')
+})

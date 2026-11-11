@@ -14,6 +14,10 @@ from stickerworker.store import LocalStore, StoreError
 
 MIGRATIONS = Path(__file__).resolve().parents[2] / "supabase" / "migrations"
 GATE_MIGRATION = MIGRATIONS / "20261105000003_quality_gate.sql"
+OWNER_MIGRATION = MIGRATIONS / "20261111000001_publish_all_safe_pause_animated.sql"
+RATING_GUARD_MIGRATION = MIGRATIONS / "20261111000002_pack_rating_guard.sql"
+# The seed as shipped on 2026-11-05; the 2026-11-11 owner migration supersedes it (kept applied-file immutable).
+GATE_SEED_2026_11_05 = {"enabled": True, "min_score": 60, "vision_judge": False, "judge_band": 20}
 
 
 def all_sql() -> str:
@@ -61,8 +65,29 @@ def test_quality_gate_migration_is_additive_and_seeds_the_worker_defaults():
                         "alter column", "update public."):
         assert destructive not in code
     seed = re.search(r"\('quality_gate',\s*'(\{[^']*\})'\)", sql)
-    assert seed and json.loads(seed.group(1)) == DEFAULT_ROWS["quality_gate"]
+    assert seed and json.loads(seed.group(1)) == GATE_SEED_2026_11_05
     assert "on conflict (key) do nothing" in code  # never overwrites an owner's setting
+
+
+def test_owner_2026_11_11_migration_publishes_all_safe_and_pauses_animated():
+    names = sorted(p.name for p in MIGRATIONS.glob("*.sql"))
+    assert names.index(OWNER_MIGRATION.name) > names.index(GATE_MIGRATION.name)
+    sql = OWNER_MIGRATION.read_text(encoding="utf-8")
+    assert "jsonb_set(value, '{min_quality}', '0'::jsonb)" in sql
+    assert "jsonb_set(value, '{enabled}', 'false'::jsonb)" in sql
+    seed = re.search(r"\('recipes',\s*'(\{[^']*\})'\)", sql)
+    assert seed and json.loads(seed.group(1)) == DEFAULT_ROWS["recipes"]
+    assert "on conflict (key) do nothing" in sql.lower()
+
+
+def test_pack_stickers_rpc_serves_only_the_packs_own_rating():
+    sql = all_sql()
+    starts = [m.start() for m in re.finditer(r"create (?:or replace )?function public\.discover_pack_stickers\b", sql)]
+    assert starts
+    body = sql[starts[-1]:]  # the definition that is live after all migrations
+    end = re.search(r"\n(?:create|grant|insert|alter) ", body[1:])
+    body = body[:end.start() + 1] if end else body
+    assert "d.rating = p.rating" in body  # W2: adult stickers never leak through a general pack
 
 
 OLD_SCHEMA = """

@@ -14,7 +14,7 @@ import { fmtBytes, fmtDateTime, plural, safeHref, timeAgo } from '../lib/format'
 import { useSelection, useUrlState } from '../lib/params'
 import { heldReviewReport, type ReviewNotice } from '../lib/quality'
 import { categoryOptions, useReference } from '../lib/reference'
-import { errorsOf, stickerIssues, waBadge, type StickerLike } from '../lib/stickerRules'
+import { errorsOf, ratingBreaksPacks, stickerIssues, waBadge, type StickerLike } from '../lib/stickerRules'
 import { useToast } from '../lib/toast'
 import { toError, useAsync } from '../lib/useAsync'
 
@@ -137,7 +137,8 @@ function StickerDrawer({ id, onClose, onChanged, onOpenSticker }: { id: string; 
 
   const credit = s?.credit
   const creditHref = safeHref(credit?.url ?? s?.source?.page_url ?? s?.source?.source_url)
-  const ratingChangeInPacks = !!s && !!draft?.rating && draft.rating !== s.rating && (data?.packs.length ?? 0) > 0
+  const ratingChangeInPacks = !!s && !!draft?.rating && draft.rating !== s.rating &&
+    ratingBreaksPacks(draft.rating, data?.packs ?? [])
 
   return (
     <Drawer
@@ -147,7 +148,12 @@ function StickerDrawer({ id, onClose, onChanged, onOpenSticker }: { id: string; 
         s &&
         s.status !== 'taken_down' && (
           <>
-            <button className="btn btn-primary" disabled={!dirty || busy || !emojiCheck.ok} onClick={() => void save()}>
+            <button
+              className="btn btn-primary"
+              disabled={!dirty || busy || !emojiCheck.ok || ratingChangeInPacks}
+              title={ratingChangeInPacks ? 'Move it out of the differently-rated pack first (packs never mix 18+ and general)' : undefined}
+              onClick={() => void save()}
+            >
               Save
             </button>
             {s.status === 'held' && (
@@ -261,7 +267,7 @@ function StickerDrawer({ id, onClose, onChanged, onOpenSticker }: { id: string; 
                 />
               </Field>
             </div>
-            {ratingChangeInPacks && <div className="note note-warn">This sticker is in {data.packs.length} pack(s); changing its rating will break their 18+/general rule until it is moved.</div>}
+            {ratingChangeInPacks && <div className="note note-warn">This sticker is in a pack with the other rating; saving is blocked until it is moved out of that pack (packs never mix 18+ and general).</div>}
             <Toggle checked={form.ai_generated ?? true} onChange={(ai_generated) => edit({ ai_generated })} label="Label as AI-generated (IT Rules: synthetic content must be labelled)" />
             <Field label="Review note">
               <input className="input" value={form.review_note ?? ''} onChange={(e) => edit({ review_note: e.target.value || null })} placeholder="Why it was rejected, edited…" />

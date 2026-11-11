@@ -19,13 +19,13 @@ from .. import vocab
 from ..ai.base import TrendBrief
 from ..analysis import Analysis, Caption, InvalidAnalysis, analysis_from_row
 from ..imaging import clip, compose, cutout, motion
-from ..imaging.decode import VIDEO_MIMES, DecodeError, decode_image, sniff_mime
+from ..imaging.decode import DecodeError, decode_image, sniff_mime
 from ..imaging.encode import EncodeError, encode_animated, encode_static
 from ..imaging.validate import InvalidSticker, require_valid
 from ..policy import decide, screen_source
 from ..store.base import SOURCES_BUCKET, STICKERS_BUCKET, Row
 from ..textutil import unique
-from .analyze import hints
+from .analyze import hints, is_animated_source
 from .captions import CaptionSet, get_captions
 from .context import Context
 from .gate import QualityGate
@@ -48,10 +48,6 @@ class Draft:
     judged: bool = True
     text: str = ""
     caption_box: tuple[int, int, int, int] | None = None  # where our caption was drawn (first frame)
-
-
-def is_animated_source(row: Row) -> bool:
-    return row.get("mime") in VIDEO_MIMES or int(row.get("frames") or 1) > 1
 
 
 def quality_of(analysis: Analysis, row: Row) -> int:
@@ -202,7 +198,8 @@ def process(ctx: Context, row: Row, trends: list[TrendBrief], room: int,
     if not verdict.allowed:
         return {**done, "status": "rejected", "last_error": "policy:" + ",".join(verdict.reasons)}, \
             Counter(rejected=1)
-    plan = plan_recipes(analysis, animated_source=is_animated_source(row), cutout_available=cutout.available())
+    plan = plan_recipes(analysis, animated_source=is_animated_source(row), cutout_available=cutout.available(),
+                        motion_enabled=ctx.settings.recipes.motion, clip_enabled=ctx.settings.recipes.clip)
     if not plan.recipes:
         return {**done, "status": "rejected", "last_error": plan.reason}, Counter(rejected=1)
     data = ctx.store.download(SOURCES_BUCKET, row["storage_path"])

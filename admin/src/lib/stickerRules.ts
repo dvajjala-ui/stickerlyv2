@@ -94,3 +94,9 @@ export function stickerIssues(s: StickerLike, ctx: { protectedNames: readonly st
 export function errorsOf(issues: readonly Issue[]): Issue[] {
   return issues.filter((i) => i.level === 'error')
 }
+
+/** W2: a rating change must not leave the sticker inside a pack with a different rating
+ * (adult stickers in general packs leak into the default feed; packs never mix ratings). */
+export function ratingBreaksPacks(newRating: Rating, packs: readonly { rating: Rating }[]): boolean {
+  return packs.some((p) => p.rating !== newRating)
+}

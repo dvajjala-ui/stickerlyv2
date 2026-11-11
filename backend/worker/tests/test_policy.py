@@ -167,7 +167,7 @@ def test_celebrity_modes():
 
 
 @pytest.mark.parametrize("kwargs, reason", [
-    ({"quality": 5}, "below_min_quality"),
+    ({"quality": 5, "min_quality": 6}, "below_min_quality"),
     ({"site": "Pinterest", "require_review_sites": frozenset({"pinterest"})}, "site_requires_review"),
     ({"auto_publish": False}, "auto_publish_off"),
 ])

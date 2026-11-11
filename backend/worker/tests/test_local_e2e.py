@@ -38,14 +38,16 @@ def test_every_output_is_a_valid_whatsapp_sticker(run_dir):
     _, out, report = run_dir
     store = LocalStore(out)
     stickers = store.rows("stickers")
-    assert len(stickers) >= 15
+    assert len(stickers) >= 12
     for sticker in stickers:
         check = inspect_sticker(store.download("stickers", sticker["file_path"]))
         assert check.ok, (sticker["recipe"], check.problems)
         assert check.kind == sticker["kind"] and check.bytes == sticker["bytes"]
         assert len(sticker["emojis"]) <= 3
-    assert {s["recipe"] for s in stickers} >= {"direct", "caption", "motion"}
-    assert {s["kind"] for s in stickers} == {"static", "animated"}
+    # Owner 2026-11-11: animated recipes paused, quality gate off -> static stickers, all safe ones published.
+    assert {s["recipe"] for s in stickers} >= {"direct", "caption"}
+    assert {s["kind"] for s in stickers} == {"static"}
+    assert all(s["status"] == "published" for s in stickers)
     assert (out / "index.html").is_file() and report["packs"]
 
 
@@ -60,6 +62,9 @@ def test_sources_are_screened_and_policed(run_dir):
     assert {r["status"] for r in sources["office reaction person"]} == {"used"}
     assert sources["meme text funny"][0]["site"] == "example"  # sidecar metadata
     assert sources["meme text funny"][0]["source_url"] == "https://example.org/meme/1"
+    # GIF sources are parked without spending vision budget while animated recipes are paused.
+    assert sources["dancing dog"][0]["status"] == "rejected"
+    assert sources["dancing dog"][0]["last_error"] == "animated_paused"
 
 
 def test_ratings_follow_the_rules(run_dir):
@@ -84,9 +89,10 @@ def test_packs_respect_whatsapp_and_mixing_rules(run_dir):
     assert all(p_kind == s_kind and p_rating == s_rating and status == "published"
                for _, p_kind, p_rating, s_kind, s_rating, status in rows)
     for pack in store.packs():
-        assert pack["sticker_count"] <= 30
-        assert pack["status"] != "published" or pack["sticker_count"] >= 3
-    assert any(p["status"] == "published" for p in store.packs())
+        assert pack["sticker_count"] <= 12
+        if pack["status"] == "published":
+            assert pack["sticker_count"] >= (8 if pack["pack_type"] == "series" else 6)
+    assert store.packs()  # sample categories are small: sets stay draft until they reach 8
 
 
 def test_ledger_and_runs_are_recorded(run_dir):
@@ -149,26 +155,30 @@ def pack_members(store: LocalStore) -> set[str]:
 def test_quality_gate_holds_a_weak_sticker_and_publishes_good_ones(tmp_path):
     inbox, out = tmp_path / "in", tmp_path / "out"
     inbox.mkdir()
-    for seed in (81, 82):
+    for seed in (81, 82, 86, 87):
         (inbox / f"office_reaction_good_{seed}.jpg").write_bytes(encode(photo(seed=seed), "JPEG", quality=92))
     # Passes prescreen (score ~6.4, so FakeAI plans caption + motion) but renders blurry.
     blurred = photo(720, 540, seed=83, hue=40).filter(ImageFilter.GaussianBlur(6))
     (inbox / "office_reaction_soft.jpg").write_bytes(encode(blurred, "JPEG", quality=92))
+    # This test exercises the gate and motion recipe explicitly; shipping defaults have both off.
+    LocalStore(out).set_setting("quality_gate", {"enabled": True, "min_score": 60, "vision_judge": False,
+                                                 "judge_band": 20})
+    LocalStore(out).set_setting("recipes", {"motion": True, "clip": True})
     assert main(["run", "--local", str(inbox), "--out", str(out)]) == 0
     store = LocalStore(out)
     by_hint = stickers_by_hint(store)
     good, weak = by_hint["office reaction good"], by_hint["office reaction soft"]
-    assert len(good) >= 4 and all(s["status"] == "published" and s["quality_score"] >= 60 for s in good)
+    assert len(good) >= 8 and all(s["status"] == "published" and s["quality_score"] >= 60 for s in good)
     assert {s["kind"] for s in weak} == {"static", "animated"}  # caption stickers and their motion variant
     for sticker in weak:
         assert sticker["status"] == "held" and sticker["quality_score"] < 60 and not sticker["published_at"]
         assert "blurry" in sticker["quality_reasons"] and sticker["review_note"].startswith("quality_gate:")
     assert store.source(weak[0]["source_id"])["status"] == "used"
-    # Held stickers are never packed. The animated pack would only reach WhatsApp's minimum of 3 with
-    # the held motion sticker, so it stays a draft; the static pack has enough published stickers.
+    # Held stickers are never packed. The static set reaches 8 and publishes; the animated one (4+held)
+    # stays a draft until it reaches the series minimum of 8.
     assert not pack_members(store) & {s["id"] for s in weak}
     animated = next(p for p in store.packs() if p["kind"] == "animated")
-    assert animated["status"] == "draft" and animated["sticker_count"] == 2
+    assert animated["status"] == "draft" and animated["sticker_count"] == 4
     assert next(p for p in store.packs() if p["kind"] == "static")["status"] == "published"
     # report.json and the gallery say why
     report = json.loads((out / "report.json").read_text(encoding="utf-8"))
@@ -177,13 +187,13 @@ def test_quality_gate_holds_a_weak_sticker_and_publishes_good_ones(tmp_path):
     assert all("blurry" in s["quality_reasons"] and s["quality_signals"]["sharpness"] < 12 for s in held)
     page = (out / "index.html").read_text(encoding="utf-8")
     assert "Held by the quality gate" in page and f"quality {held[0]['quality_score']}/100: blurry" in page
-    # An admin approves the held motion sticker: the next compose packs it and the animated pack publishes.
+    # An admin approves the held motion sticker: the next compose packs it (still below the set minimum).
     motion = next(s for s in weak if s["kind"] == "animated")
     store.update_sticker(motion["id"], {"status": "published"})
     assert main(["run", "--stage", "compose", "--local", str(inbox), "--out", str(out)]) == 0
     assert motion["id"] in pack_members(store)
     animated = next(p for p in store.packs() if p["kind"] == "animated")
-    assert animated["status"] == "published" and animated["sticker_count"] == 3
+    assert animated["status"] == "draft" and animated["sticker_count"] == 5
 
 
 def test_optional_vision_judge_runs_offline_with_fake_ai(tmp_path):

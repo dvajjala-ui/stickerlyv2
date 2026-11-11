@@ -1,10 +1,11 @@
 """Stage 4 (`compose`): build packs from published stickers.
 
-- Series packs per (category, kind, rating) grow to 30 stickers, then volume+1 opens.
-- Daily drops: an active trend with >= 6 matching stickers gets a `daily` pack.
+- Series packs per (category, kind, rating) are add-ready sets: they publish at >= 8 stickers and
+  grow to 12, then volume+1 opens (owner decision 2026-11-11: packs of 8-12, not random singles).
+- Daily drops: an active trend with >= 6 matching stickers gets a `daily` pack (also capped at 12).
 - kind and rating are part of every pack key, so static/animated and general/adult
   never mix. Non-published stickers are pruned from managed packs (and re-added
-  if they are published again). Packs publish at >= 3 published stickers.
+  if they are published again).
 """
 from __future__ import annotations
 
@@ -24,8 +25,8 @@ from ..textutil import slugify, tokens
 from ..timeutil import iso
 from .context import Context
 
-CAPACITY = 30
-MIN_PUBLISHED = 3
+CAPACITY = 12
+SERIES_MIN = 8
 DAILY_MIN = 6
 MANAGED_TYPES = ("series", "daily")
 FROZEN_STATUSES = ("taken_down", "archived")
@@ -201,10 +202,12 @@ def finalize(ctx: Context, packs: list[PackState], info: dict[str, Row], refresh
         fields: dict[str, Any] = {}
         if cover != row.get("cover_sticker_id"):
             fields["cover_sticker_id"] = cover
-        if row.get("status") == "draft" and len(published) >= MIN_PUBLISHED and ctx.settings.publish.auto_publish:
-            fields["status"] = "published"
-            fields["published_at"] = row.get("published_at") or iso(ctx.now())
-            counts["packs_published"] += 1
+        if row.get("status") == "draft" and ctx.settings.publish.auto_publish:
+            minimum = SERIES_MIN if row.get("pack_type") == "series" else DAILY_MIN
+            if len(published) >= minimum:
+                fields["status"] = "published"
+                fields["published_at"] = row.get("published_at") or iso(ctx.now())
+                counts["packs_published"] += 1
         if fields:
             fields["version"] = int(row.get("version") or 1) + 1
             ctx.store.update_pack(pack.id, fields)

@@ -1,4 +1,4 @@
-"""Pack composition: 30 cap, growing volumes, no static/animated or adult/general mixing, trends."""
+"""Pack composition: 12 cap, series publish at 8, growing volumes, no kind/rating mixing, trends."""
 from __future__ import annotations
 
 import hashlib
@@ -34,16 +34,18 @@ def pack_members(store):
     return rows.fetchall()
 
 
-def test_series_grow_to_30_then_open_new_volumes(ctx, store):
+def test_series_grow_to_12_then_open_new_volumes(ctx, store):
     for i in range(65):
         add_sticker(store, quality=5 + i % 5)
     summary = packs.run(ctx)
     series = sorted((p for p in store.packs() if p["pack_type"] == "series"), key=lambda p: p["volume"])
-    assert [p["volume"] for p in series] == [1, 2, 3]
-    assert [p["sticker_count"] for p in series] == [30, 30, 5]
+    assert [p["volume"] for p in series] == [1, 2, 3, 4, 5, 6]
+    assert [p["sticker_count"] for p in series] == [12, 12, 12, 12, 12, 5]
     assert series[0]["title"] == "Office Ke Dukh" and series[1]["title"] == "Office Ke Dukh Vol 2"
-    assert all(p["status"] == "published" and p["published_at"] for p in series)
-    assert summary["series_added"] == 65 and summary["packs_created"] == 3
+    # Sets of 8-12: full volumes publish, the 5-sticker remainder stays a draft until it reaches 8.
+    assert [p["status"] for p in series] == ["published"] * 5 + ["draft"]
+    assert all(p["published_at"] for p in series[:5])
+    assert summary["series_added"] == 65 and summary["packs_created"] == 6
     for pack in series:  # cover = best quality member
         members = store.rows("stickers", "id in (select sticker_id from pack_items where pack_id = ?)", (pack["id"],))
         assert pack["cover_sticker_id"] in {m["id"] for m in members if m["quality"] == max(x["quality"]
@@ -104,18 +106,18 @@ def test_positions_stay_unique_after_pruning(ctx, store):
     assert len(positions) == len(set(positions)) == 5
 
 
-def test_held_stickers_are_never_packed_or_counted_towards_three(ctx, store):
-    for _ in range(2):
+def test_held_stickers_are_never_packed_or_counted_towards_the_series_minimum(ctx, store):
+    for _ in range(7):
         add_sticker(store, category="festivals")
     held = add_sticker(store, category="festivals", status="held")
     packs.run(ctx)
     (pack,) = store.packs()
-    assert pack["status"] == "draft" and pack["sticker_count"] == 2
+    assert pack["status"] == "draft" and pack["sticker_count"] == 7
     assert held["id"] not in {i["sticker_id"] for i in store.pack_items([pack["id"]])}
     store.update_sticker(held["id"], {"status": "published"})  # an admin approves it
     packs.run(ctx)
     (pack,) = store.packs()
-    assert pack["status"] == "published" and pack["sticker_count"] == 3
+    assert pack["status"] == "published" and pack["sticker_count"] == 8
 
 
 def test_daily_trend_pack_needs_six_matches(ctx, store):

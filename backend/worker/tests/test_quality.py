@@ -33,7 +33,7 @@ from stickerworker.imaging.quality import (
 )
 from stickerworker.pipeline.gate import QualityGate
 from stickerworker.settings import QualityGate as GateSettings
-from stickerworker.settings import parse_settings
+from stickerworker.settings import Recipes, parse_settings
 
 SUBJECT = Crop(0.12, 0.1, 0.76, 0.8)
 TRANSPARENT = (0, 0, 0, 0)
@@ -181,10 +181,13 @@ def test_duplicate_and_judge_blending():
 
 # ------------------------------------------------------------------ settings + gate decisions
 def test_quality_gate_settings_defaults_and_bounds():
-    assert parse_settings({}).quality == GateSettings(enabled=True, min_score=60, vision_judge=False, judge_band=20)
-    parsed = parse_settings({"quality_gate": {"enabled": False, "min_score": 250, "vision_judge": "yes",
+    # Owner 2026-11-11: gate off by default (every safe sticker publishes); animated recipes paused.
+    assert parse_settings({}).quality == GateSettings(enabled=False, min_score=60, vision_judge=False, judge_band=20)
+    assert parse_settings({}).recipes == Recipes(motion=False, clip=False)
+    assert parse_settings({"recipes": {"motion": True, "clip": "yes"}}).recipes == Recipes(motion=True, clip=False)
+    parsed = parse_settings({"quality_gate": {"enabled": True, "min_score": 250, "vision_judge": "yes",
                                               "judge_band": -5}}).quality
-    assert parsed == GateSettings(enabled=False, min_score=100, vision_judge=False, judge_band=0)
+    assert parsed == GateSettings(enabled=True, min_score=100, vision_judge=False, judge_band=0)
 
 
 def with_gate(ctx, **overrides: Any) -> None:
@@ -202,6 +205,7 @@ def check(gate: QualityGate, made: compose.Composed, data: bytes, source_id: str
 
 
 def test_gate_holds_only_stickers_that_would_publish(ctx):
+    with_gate(ctx, enabled=True)
     gate = QualityGate(ctx, known=[])
     weak = check(gate, BLURRED, BLURRED_WEBP, "s1")
     good = check(gate, GOOD, GOOD_WEBP, "s2")
@@ -213,6 +217,7 @@ def test_gate_holds_only_stickers_that_would_publish(ctx):
 
 
 def test_gate_flags_near_duplicates_from_other_sources_only(ctx, store):
+    with_gate(ctx, enabled=True)
     picture = photo(seed=61)
     framed = Image.new("RGB", (picture.width + 160, picture.height + 160), "white")
     framed.paste(picture, (80, 80))  # a different file (prescreen pHash is 26 bits away) of the same picture
@@ -265,7 +270,7 @@ def test_vision_judge_is_off_by_default(ctx):
 
 
 def test_vision_judge_only_sees_borderline_stickers_that_would_publish(ctx):
-    with_gate(ctx, vision_judge=True)
+    with_gate(ctx, enabled=True, vision_judge=True)
     ctx.ai = CountingJudge(score=9)
     gate = QualityGate(ctx, known=[])
     assert "judge" not in check(gate, GOOD, GOOD_WEBP, "a").signals  # 100: clearly fine
@@ -282,7 +287,7 @@ def test_vision_judge_only_sees_borderline_stickers_that_would_publish(ctx):
 
 
 def test_vision_judge_skipped_when_the_vision_budget_is_spent(ctx):
-    with_gate(ctx, vision_judge=True)
+    with_gate(ctx, enabled=True, vision_judge=True)
     ctx.ai = CountingJudge(remaining=0)
     gate = QualityGate(ctx, known=[])
     report = check(gate, BLURRED, BLURRED_WEBP, "s")
@@ -292,7 +297,7 @@ def test_vision_judge_skipped_when_the_vision_budget_is_spent(ctx):
 
 
 def test_vision_judge_failure_stops_it_for_the_run(ctx):
-    with_gate(ctx, vision_judge=True)
+    with_gate(ctx, enabled=True, vision_judge=True)
     ctx.ai = CountingJudge(fail=AIUnavailable("rate limited"))
     gate = QualityGate(ctx, known=[])
     for source in ("a", "b"):
@@ -315,7 +320,7 @@ def test_groq_vision_judge_spends_one_vision_image_per_sticker(ctx):
     ledger: list[dict[str, Any]] = []
     client = GroqClient(["gsk_test_key"], budget=Budget({"vision": 1, "text": 0}), ledger=ledger.append,
                         transport=httpx.MockTransport(handler), sleep=lambda s: None)
-    with_gate(ctx, vision_judge=True)
+    with_gate(ctx, enabled=True, vision_judge=True)
     ctx.ai = GroqAI(client, Env())
     gate = QualityGate(ctx, known=[])
     first = check(gate, BLURRED, BLURRED_WEBP, "a")

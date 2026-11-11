@@ -19,13 +19,22 @@ def test_pictures_with_text_always_go_direct(best):
 
 
 def test_reaction_without_text_gets_caption_and_motion():
-    assert plan_recipes(make_analysis(), animated_source=False, cutout_available=False).recipes == \
-        ("caption", "motion")
+    assert plan_recipes(make_analysis(), animated_source=False, cutout_available=False,
+                        motion_enabled=True).recipes == ("caption", "motion")
 
 
 def test_motion_only_for_strong_stickers():
-    assert plan_recipes(make_analysis(sticker_score=5), animated_source=False, cutout_available=False).recipes == \
-        ("caption",)
+    assert plan_recipes(make_analysis(sticker_score=5), animated_source=False, cutout_available=False,
+                        motion_enabled=True).recipes == ("caption",)
+
+
+def test_animated_recipes_paused_by_default():
+    # Owner 2026-11-11: no motion variants, no GIF clips until real video stickers exist.
+    assert plan_recipes(make_analysis(), animated_source=False, cutout_available=False).recipes == ("caption",)
+    paused = plan_recipes(make_analysis(has_text=True), animated_source=True, cutout_available=True)
+    assert paused.recipes == () and paused.reason == "animated_paused"
+    assert plan_recipes(make_analysis(), animated_source=True, cutout_available=False,
+                        motion_enabled=True).reason == "animated_paused"
 
 
 def test_cutout_only_when_installed():
@@ -35,8 +44,8 @@ def test_cutout_only_when_installed():
 
 
 def test_animated_sources_become_clips():
-    assert plan_recipes(make_analysis(has_text=True), animated_source=True, cutout_available=True).recipes == \
-        ("clip",)
+    assert plan_recipes(make_analysis(has_text=True), animated_source=True, cutout_available=True,
+                        clip_enabled=True).recipes == ("clip",)
 
 
 @pytest.mark.parametrize("fields, reason", [({"best_recipe": "skip"}, "model_skip"),

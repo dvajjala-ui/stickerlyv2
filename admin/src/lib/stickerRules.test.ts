@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { WA_ANIMATED_MAX_BYTES, WA_STATIC_MAX_BYTES, errorsOf, protectedMatch, stickerIssues, waBadge, type StickerLike } from './stickerRules'
+import { WA_ANIMATED_MAX_BYTES, WA_STATIC_MAX_BYTES, errorsOf, protectedMatch, ratingBreaksPacks, stickerIssues, waBadge, type StickerLike } from './stickerRules'
 
 const base: StickerLike = { id: 'a', kind: 'static', rating: 'general', status: 'draft', bytes: 50_000, emojis: ['😂'] }
 const flags = { nsfw: 'none' as const, minors: false, real_person: false, public_figure: null }
@@ -50,5 +50,12 @@ describe('sticker publish rules', () => {
   it('warns (not blocks) on real people in 18+ stickers', () => {
     const issues = stickerIssues({ ...base, rating: 'adult', source: { ...flags, real_person: true } }, { protectedNames: [] })
     expect(issues.map((i) => `${i.level}:${i.code}`)).toEqual(['warning:real_adult'])
+  })
+
+  it('blocks a rating change that would leave the sticker in a differently-rated pack (W2)', () => {
+    expect(ratingBreaksPacks('adult', [{ rating: 'general' }])).toBe(true)
+    expect(ratingBreaksPacks('general', [{ rating: 'adult' }])).toBe(true)
+    expect(ratingBreaksPacks('adult', [{ rating: 'adult' }, { rating: 'adult' }])).toBe(false)
+    expect(ratingBreaksPacks('adult', [])).toBe(false)
   })
 })
