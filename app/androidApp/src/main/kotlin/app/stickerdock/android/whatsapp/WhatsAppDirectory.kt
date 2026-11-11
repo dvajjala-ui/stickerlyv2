@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.LauncherApps
 import android.content.pm.PackageManager
+import android.os.Build
 import android.os.UserHandle
 import app.stickerdock.android.dual.Dual
 import app.stickerdock.host.TargetKind
@@ -54,7 +55,13 @@ class WhatsAppDirectory(private val context: Context) {
         }
 
     private fun installedHere(pkg: String) = runCatching {
-        context.packageManager.getApplicationInfo(pkg, PackageManager.ApplicationInfoFlags.of(0)).enabled
+        // ApplicationInfoFlags is API 33+; without the guard WhatsApp detection silently dies on 9–12L (A1).
+        if (Build.VERSION.SDK_INT >= 33) {
+            context.packageManager.getApplicationInfo(pkg, PackageManager.ApplicationInfoFlags.of(0)).enabled
+        } else {
+            @Suppress("DEPRECATION")
+            context.packageManager.getApplicationInfo(pkg, 0).enabled
+        }
     }.getOrDefault(false)
 
     private fun installedIn(pkg: String, profile: UserHandle) = runCatching {

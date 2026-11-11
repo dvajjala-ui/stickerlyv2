@@ -5,6 +5,7 @@ import android.graphics.Canvas
 import android.graphics.ImageDecoder
 import android.graphics.Paint
 import android.graphics.RectF
+import android.os.Build
 import app.stickerdock.core.AnimatedWebpFixer
 import app.stickerdock.core.Dhash
 import app.stickerdock.core.StickerKind
@@ -16,6 +17,10 @@ import java.io.File
 import java.nio.ByteBuffer
 import kotlin.math.max
 import kotlin.math.roundToInt
+
+/** WEBP_LOSSY only exists on API 30+; older Android uses the legacy WEBP encoder (review A1). */
+internal val LOSSY_WEBP: Bitmap.CompressFormat =
+    if (Build.VERSION.SDK_INT >= 30) Bitmap.CompressFormat.WEBP_LOSSY else Bitmap.CompressFormat.WEBP
 
 sealed interface Normalized {
     data class Ok(val bytes: ByteArray, val kind: StickerKind, val exif: StickerPackExif?, val reencoded: Boolean) : Normalized {
@@ -96,7 +101,7 @@ object StickerNormalizer {
                 Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG))
             for (quality in intArrayOf(92, 85, 78, 70, 62, 54, 46, 38, 30, 22)) {
                 val out = ByteArrayOutputStream()
-                check(canvasBitmap.compress(Bitmap.CompressFormat.WEBP_LOSSY, quality, out))
+                check(canvasBitmap.compress(LOSSY_WEBP, quality, out))
                 if (out.size() <= StickerRules.STATIC_MAX_BYTES) return out.toByteArray()
             }
             return null
@@ -135,7 +140,7 @@ object TrayMaker {
                 scaled.compress(Bitmap.CompressFormat.PNG, 100, out)
                 if (out.size() <= StickerRules.TRAY_MAX_BYTES) return out.toByteArray()
                 val lossy = ByteArrayOutputStream()
-                scaled.compress(Bitmap.CompressFormat.WEBP_LOSSY, 80, lossy)
+                scaled.compress(LOSSY_WEBP, 80, lossy)
                 return lossy.toByteArray().takeIf { it.size <= StickerRules.TRAY_MAX_BYTES }
             } finally {
                 if (scaled !== bitmap) scaled.recycle()

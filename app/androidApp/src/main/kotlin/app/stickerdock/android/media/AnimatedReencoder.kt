@@ -130,7 +130,7 @@ object AnimatedReencoder {
                     outCanvas.drawBitmap(frame, null, dst, filter)
                     overlay?.invoke(outCanvas)
                     val bytes = ByteArrayOutputStream()
-                    check(out512.compress(Bitmap.CompressFormat.WEBP_LOSSY, quality, bytes))
+                    check(out512.compress(LOSSY_WEBP, quality, bytes))
                     frames += bytes.toByteArray()
                     times += duration
                 } else if (times.isNotEmpty()) {
