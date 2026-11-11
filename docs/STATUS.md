@@ -2,6 +2,24 @@
 
 Only claims backed by a test run, build or device check appear here.
 
+## 2026-11-11 — send-first implemented; verification deferred to CI + phone
+- Send-first (tap = Send with sticker MIME, ★ save, ⋯ tray with auto-pad, keyboard-hero onboarding) is
+  implemented in the app with 3 new JVM `LibraryTest` cases, but **not compiled or run on this PC**
+  (no JDK/Android SDK). CI app.yml is the compile/test check on push; the ≤2-tap and keyboard-in-chat
+  acceptance checks need the owner's phone. Nothing here claims those passed yet.
+
+## 2026-11-11 — worker/admin/schema runs on this PC (no phone, no JDK/Android SDK)
+- Worker `pytest` **259 passed, 1 skipped** in a fresh `backend/worker/.venv`: publish-all-safe defaults
+  (gate off, min_quality 0), animated recipes paused (`animated_paused` parks GIF sources before vision spend),
+  series packs publish at 8 / cap 12, gate and motion still fully tested when explicitly enabled.
+- Admin `npm test` **106/106** and `npm run build` green: saving a rating change that breaks a pack's
+  18+/general rule is blocked (`ratingBreaksPacks` + unit test).
+- Schema (PGlite) **5/5**: both new migrations apply in order; new test proves an adult sticker in a general
+  published pack is NOT served by `discover_pack_stickers` (W2 guard).
+- A1 (Android 9–12L crashes) and W2 verified against code, then fixed; the Kotlin fix is **not compiled
+  locally** (no JDK/SDK on this PC) — CI app.yml is the compile check; device re-check pending.
+- Live DB still has the old settings until the two 2026-11-11 migrations are applied (owner action).
+
 ## 2026-11-05 — on the owner's Galaxy S24 Ultra (Android 16 / One UI 8.5), debug build, phone locked (pattern)
 All checks below ran over adb with debug-only command hooks; no WhatsApp UI was touched.
 - **Dual Messenger install (D1)** ✅ `pm install-existing --user 95 app.stickerdock.dev` → "installed for user: 95".

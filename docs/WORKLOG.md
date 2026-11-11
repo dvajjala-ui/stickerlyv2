@@ -2,6 +2,63 @@
 
 Resume here after any interruption. Each entry: what changed, how it was verified, what is next.
 
+## 2026-11-11 — send-first tap-to-send implemented in the app (owner: "Build it now")
+
+Per `docs/flows/send-first-spec.md`:
+- **Tap = Send** on every sticker surface (Discover grid + pack sheet, library grid, pack screen). Single
+  stickers go through the existing FileProvider chooser with the sticker MIME `image/webp.wasticker`
+  (`AndroidHost.shareUris`); Discover stickers download first via new `HostActions.shareStickerBytes`
+  (cache/shared/send.webp). No false "Sent" toast. `markUsed` on send so Recents stays honest.
+- **★ = Save**: Discover → rolling "Saved stickers" pack with Undo snackbar; the rolling-pack logic moved from
+  `DiscoverSaver` into `Library.savedPack` (JVM-tested). Library/pack ★ = favourite.
+- **Long-press = preview sheet**: full-width Send, Save, ⋯ (Add to WhatsApp tray, Add to a pack, Select
+  multiple, Report). Library multi-select now starts via ⋯ → Select multiple; selection bar unchanged.
+- **The 3+ rule is invisible**: `Library.prepareTray` tops 1–2-sticker packs up from favourites → recents
+  (same kind/vault; a general pack never receives 18+). `AndroidHost.addToWhatsApp` auto-pads before
+  validation and says "WhatsApp needs 3+ in a tray, so we added your recent ones." The "needs 3–30"
+  dead-ends are gone from PackScreen, WhatsAppScreen and PackCard; thin packs show Add buttons.
+- **Keyboard hero**: one-time first-run dialog pushes keyboard enable (prefs flag `keyboard_intro_shown`);
+  WhatsApp tab lists the keyboard card first.
+- **Tests**: 3 new `LibraryTest` cases (savedPack rolling/lanes; prepareTray favourites-then-recents;
+  rating/vault/kind guards). `UiSnapshotTest` script updated for the new long-press/sheet gestures.
+
+**Verified:** static review only on this PC — no JDK/Android SDK here, so CI app.yml
+(`:shared:jvmTest :shared:verifySqlDelightMigration :androidApp:assembleDebug`) is the compile/test check
+once pushed. Device acceptance (≤2 taps to send, keyboard-in-chat, animated send, both WhatsApps) pending
+the owner's phone. Worker/admin/schema suites unchanged by this work (last runs: 259/106/5 green).
+
+**Next:** push to run CI; phone acceptance; the two 2026-11-11 migrations still need applying (owner).
+
+## 2026-11-11 — owner requests: verify review, publish-all, pause animated, sets of 8-12
+
+**Verified (read-only agents + code):** A1 confirmed (no SDK_INT guards anywhere; `ApplicationInfoFlags` API 33
+silently kills WhatsApp detection on 9–12L inside runCatching; `WEBP_LOSSY` API 30 crashes creator/import/tray on
+9–10 as a NoSuchFieldError that escapes ImportWorker's `catch (Exception)`). W2 confirmed
+(`discover_pack_stickers` had no rating filter; admin only warned; app saver promotes the local pack to adult
+*after* downloading the leaked sticker).
+
+**Owner decisions implemented (worker + schema + admin):**
+1. Every safe sticker publishes: `quality_gate.enabled=false`, `publish_policy.min_quality=0` (defaults +
+   migration `20261111000001`). Safety policy (policy.py) untouched — hard rules still reject explicit/minor/
+   protected content. Reversible in admin Settings.
+2. Animated recipes paused: new `recipes` setting `{motion:false, clip:false}`; `plan_recipes` returns
+   `animated_paused` for GIF/video sources; analyze parks them **before** spending vision budget. Revive SQL in
+   the migration header.
+3. Packs are add-ready sets: series publish at **8**, cap **12** (was 3/30); daily trend packs 6–12.
+4. W2 fixed: migration `20261111000002` adds `d.rating = p.rating` to `discover_pack_stickers`; admin blocks
+   saving a rating change that would leave the sticker in a differently-rated pack (`ratingBreaksPacks`).
+5. A1 fixed: SDK_INT 33 guard + legacy `getApplicationInfo(pkg, 0)` in WhatsAppDirectory; `LOSSY_WEBP` compat
+   val (WEBP_LOSSY on 30+, legacy WEBP below) used by StickerNormalizer, TrayMaker, AnimatedReencoder.
+
+**Verified by runs:** worker pytest **259 passed, 1 skipped** (new venv at backend/worker/.venv — none existed);
+admin vitest **106/106** + `npm run build` green (Node v24 IS on this PC now); schema PGlite **5/5** incl. a new
+W2 leak test. **Android compile NOT run here: no JDK/Android SDK on this machine** (D:\dev missing) — A1 fix
+awaits CI app.yml; device re-check when the phone is connected.
+
+**Not done / next:** apply the two new migrations to the live project (owner: `python -m stickerworker migrate`
+with DB creds, or paste into Supabase SQL editor); send-first tap-to-send (spec ready, app work, needs device);
+enable Reddit/Imgflip collection in HandNavigate (recipes already exist there); judge first real meme batch.
+
 ## 2026-11-05 — session 1 (owner asleep; autonomous overnight run)
 
 **Device (owner's Galaxy S24 Ultra)** — authorized over USB.

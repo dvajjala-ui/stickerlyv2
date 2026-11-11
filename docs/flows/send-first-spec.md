@@ -1,6 +1,7 @@
 # Flow spec: send-first (P0)
 
-Turns the #1 complaint ("the add-to-WhatsApp flow is too long") into a buildable spec. Planning only — no code here.
+Turns the #1 complaint ("the add-to-WhatsApp flow is too long") into a buildable spec.
+**Implemented 2026-11-11** (app code + JVM tests; CI compile and phone acceptance pending). Spec below.
 Owner bar: a 6th-standard kid finds a sticker and sends it in **one tap**. Grounds: UX_RESEARCH_AND_GAPS.md,
 research/architecture-and-patterns.md.
 

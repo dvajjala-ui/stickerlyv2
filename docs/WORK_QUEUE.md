@@ -32,16 +32,25 @@ The owner tested the live app and flagged major flow friction. Full research + c
 - **P5 recents/favourites + instant forgiving search** in the send surface. **P6 share-a-pack deep link into the app.**
 
 ## Next — product (verifiable here)
-1. **First real meme batch through the pipeline** — judge sticker quality honestly; tune captions/crops if weak.
-2. **Admin "Collect" page** — topics and jobs from the UI. Blocked on a machine with Node (or CI-only iteration).
-3. **In-app "New today" row + freshness badge** in Discover (mirrors the storefront).
-4. **Shareable pack links into the app** — `stickerdock://pack/<id>` deep link from the storefront `?pack=` page.
-5. **Report button in app Discover** — server side (`report_content`) exists; wire the UI.
-6. **Manual cutout touch-up (erase/restore brush)** in the creator — the biggest v1 creator gap.
-7. **Saved search history + storage meter** in the library (v1 had both).
-8. **Smoother converted animations** — ANMF delta frames so long animations keep more frames under 500 KB.
-9. **Caption variety** — A/B two captions per strong source; keep the one the quality gate scores higher.
-10. **Original art (Cloudflare FLUX)** for categories without good sources — needs the owner's Cloudflare keys.
+1. **Send-first tap-to-send (owner request 2026-11-11, P0)** — implemented in the app per
+   `docs/flows/send-first-spec.md` (tap = Send with sticker MIME, ★ save, ⋯ tray with auto-pad, keyboard-hero
+   first-run). Remaining: push so CI app.yml compiles + runs the new JVM tests, then the phone acceptance
+   checks (≤2 taps, keyboard-in-chat, animated send, both WhatsApps).
+2. **More collection sources (owner request 2026-11-11)** — HandNavigate already has Reddit (signed-in),
+   Imgflip, Flickr and Openverse recipes; enable/verify them on the VM (earn-topics), worker `library` picks
+   them up site-agnostically. Use `publish_policy.require_review_sites` for any site whose memes need a human.
+   GIF sources stay parked while animated recipes are paused.
+3. **First real meme batch through the pipeline** — judge sticker quality honestly; tune captions/crops if weak.
+4. **Admin "Collect" page** — topics and jobs from the UI (Node is on this PC now; local iteration possible).
+5. **In-app "New today" row + freshness badge** in Discover (mirrors the storefront).
+6. **Shareable pack links into the app** — `stickerdock://pack/<id>` deep link from the storefront `?pack=` page.
+7. **Report button in app Discover** — server side (`report_content`) exists; wire the UI.
+8. **Manual cutout touch-up (erase/restore brush)** in the creator — the biggest v1 creator gap.
+9. **Saved search history + storage meter** in the library (v1 had both).
+10. **Real video stickers** — replace the paused motion/clip recipes with actual video-derived animation.
+11. **Caption variety** — A/B two captions per strong source; keep the one the quality score rates higher.
+12. **Original art (Cloudflare FLUX)** for categories without good sources — needs the owner's Cloudflare keys;
+    also the path to guaranteed themed 8-12 sets when collection is thin.
 
 ## Later — growth and depth
 - Play Store internal testing track (privacy page is ready at `site/privacy.html`).
@@ -51,7 +60,10 @@ The owner tested the live app and flagged major flow friction. Full research + c
 - Creator uploads with moderation, identity and age gating (its own project).
 
 ## Owner-only (I can't do these)
-1. GitHub → stickerlyv2 → Settings → Secrets: `SUPABASE_URL`, `SUPABASE_SECRET_KEY`, `GROQ_API_KEYS`,
+1. **Apply the 2026-11-11 migrations** to the live project (`python -m stickerworker migrate` with the DB
+   password, or paste both files into the Supabase SQL editor): publish-all-safe + paused animated recipes +
+   the pack rating guard. Until then the live DB keeps the old gate/settings.
+2. GitHub → stickerlyv2 → Settings → Secrets: `SUPABASE_URL`, `SUPABASE_SECRET_KEY`, `GROQ_API_KEYS`,
    `SUPABASE_PUBLISHABLE_KEY`; variable `WORKER_SCHEDULE=on` — turns on the 24/7 worker.
 2. Vercel: import the repo twice (root `site/`, root `admin/`) — see `DEPLOY.md`.
 3. Connect the phone (USB debugging) for on-device crash and WhatsApp checks.
